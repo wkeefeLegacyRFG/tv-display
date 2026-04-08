@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Legacy Roofing — TV Display</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --cyan: #abe1fa;
+    --blue: #2c2f75;
+    --dark: #07080f;
+  }
+
+  html, body {
+    width: 100%; height: 100%;
+    background: var(--dark);
+    color: #fff;
+    font-family: 'Segoe UI', Arial, sans-serif;
+    overflow: hidden;
+  }
+
+  /* TOP BAR — not sticky */
+  #top-bar {
+    position: relative;
+    width: 100%; height: 48px;
+    background: var(--blue);
+    border-bottom: 2px solid var(--cyan);
+    display: flex; align-items: center;
+    justify-content: space-between;
+    padding: 0 20px; flex-shrink: 0;
+  }
+  #top-bar .brand {
+    font-size: 13px; font-weight: 700;
+    letter-spacing: 0.12em; color: var(--cyan);
+    text-transform: uppercase; min-width: 160px;
+  }
+  #top-bar .center-info {
+    display: flex; flex-direction: column;
+    align-items: center; gap: 2px;
+  }
+  #top-bar .period-title {
+    font-size: 14px; font-weight: 700;
+    color: #fff; letter-spacing: 0.06em; text-transform: uppercase;
+  }
+  #top-bar .panel-title {
+    font-size: 11px; color: var(--cyan);
+    letter-spacing: 0.08em; text-transform: uppercase;
+  }
+  #top-bar .clock {
+    font-size: 13px; color: rgba(255,255,255,0.75);
+    font-variant-numeric: tabular-nums;
+    min-width: 160px; text-align: right;
+  }
+
+  /* SIDE TABS */
+  #segment-tabs {
+    position: fixed; right: 14px; top: 50%;
+    transform: translateY(-50%);
+    display: flex; flex-direction: column; gap: 12px;
+    z-index: 300;
+  }
+  .seg-tab {
+    display: flex; flex-direction: column;
+    align-items: center; gap: 5px;
+  }
+  .seg-tab-label {
+    font-size: 9px; font-weight: 700;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--cyan); background: var(--blue);
+    border: 1px solid rgba(171,225,250,0.25);
+    border-radius: 4px; padding: 2px 6px;
+    white-space: nowrap; opacity: 0.35;
+    transition: opacity 0.4s, border-color 0.4s;
+  }
+  .seg-tab.active .seg-tab-label {
+    opacity: 1; border-color: var(--cyan);
+  }
+  .seg-tab-dots {
+    display: flex; flex-direction: column;
+    gap: 5px; align-items: center;
+  }
+  .seg-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--blue);
+    border: 1.5px solid rgba(171,225,250,0.2);
+    transition: background 0.4s, border-color 0.4s;
+  }
+  .seg-dot.active {
+    background: var(--cyan); border-color: var(--cyan);
+  }
+
+  /* PROGRESS BAR */
+  #progress-bar {
+    position: fixed; bottom: 0; left: 0;
+    height: 7px; background: var(--cyan);
+    width: 0%; z-index: 400;
+  }
+
+  /* CONTROLS */
+  #controls {
+    position: fixed; bottom: 16px; left: 50%;
+    transform: translateX(-50%);
+    display: flex; align-items: center; gap: 10px;
+    z-index: 400;
+    background: rgba(44,47,117,0.9);
+    border: 1px solid rgba(171,225,250,0.3);
+    border-radius: 40px; padding: 7px 18px;
+    opacity: 0; transition: opacity 0.4s;
+  }
+  body:hover #controls { opacity: 1; }
+  #controls.always-show { opacity: 1; }
+
+  .ctrl-btn {
+    background: none;
+    border: 1px solid rgba(171,225,250,0.3);
+    border-radius: 50%; width: 36px; height: 36px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; color: var(--cyan);
+    transition: background 0.2s, transform 0.1s;
+  }
+  .ctrl-btn:hover { background: rgba(171,225,250,0.12); }
+  .ctrl-btn:active { transform: scale(0.93); }
+  .ctrl-btn.primary {
+    width: 44px; height: 44px;
+    border-color: rgba(171,225,250,0.5);
+    background: rgba(171,225,250,0.08);
+  }
+  #paused-badge {
+    display: none; font-size: 11px; font-weight: 700;
+    letter-spacing: 0.1em; color: var(--cyan);
+    text-transform: uppercase; padding: 0 6px;
+  }
+  #paused-badge.show { display: block; }
+
+  /* VIEWPORT + IFRAME */
+  #viewport {
+    position: fixed; top: 48px; left: 0; right: 0; bottom: 0;
+    overflow: hidden; background: var(--dark);
+  }
+  #dash-frame {
+    position: absolute; top: 0; left: 0;
+    border: none; width: 1920px; height: 8000px;
+    transform-origin: top left; transform: scale(1);
+  }
+
+  /* TRANSITION OVERLAY */
+  #transition-overlay {
+    position: fixed; inset: 0; background: var(--blue);
+    opacity: 0; pointer-events: none; z-index: 500;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 12px;
+  }
+  #transition-overlay.visible {
+    opacity: 1; pointer-events: all;
+  }
+  #overlay-sub {
+    font-size: 12px; color: var(--cyan);
+    letter-spacing: 0.14em; text-transform: uppercase; opacity: 0.7;
+  }
+  #overlay-main {
+    font-size: 40px; font-weight: 800; color: #fff;
+  }
+  #overlay-detail {
+    font-size: 14px; color: rgba(255,255,255,0.55);
+    letter-spacing: 0.06em; margin-top: 4px;
+  }
+  #overlay-brand {
+    font-size: 12px; font-weight: 700; color: var(--cyan);
+    letter-spacing: 0.12em; text-transform: uppercase;
+    margin-top: 18px;
+    border: 1px solid rgba(171,225,250,0.35);
+    padding: 5px 16px; border-radius: 4px;
+  }
+</style>
+</head>
+<body>
+
+<div id="top-bar">
+  <div class="brand">Legacy Roofing</div>
+  <div class="center-info">
+    <div class="period-title" id="period-title">Loading…</div>
+    <div class="panel-title"  id="panel-title">—</div>
+  </div>
+  <div class="clock" id="clock">—</div>
+</div>
+
+<div id="segment-tabs"></div>
+
+<div id="viewport">
+  <iframe id="dash-frame" src="about:blank" scrolling="no"></iframe>
+</div>
+
+<div id="progress-bar"></div>
+
+<div id="controls">
+  <button class="ctrl-btn" id="btn-back">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <polygon points="19 20 9 12 19 4 19 20"></polygon>
+      <line x1="5" y1="19" x2="5" y2="5"></line>
+    </svg>
+  </button>
+  <button class="ctrl-btn primary" id="btn-pause">
+    <svg id="icon-pause" width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+      <rect x="6" y="4" width="4" height="16" rx="1"></rect>
+      <rect x="14" y="4" width="4" height="16" rx="1"></rect>
+    </svg>
+    <svg id="icon-play" width="15" height="15" viewBox="0 0 24 24" fill="currentColor" style="display:none;margin-left:2px">
+      <polygon points="5 3 19 12 5 21 5 3"></polygon>
+    </svg>
+  </button>
+  <button class="ctrl-btn" id="btn-skip">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <polygon points="5 4 15 12 5 20 5 4"></polygon>
+      <line x1="19" y1="5" x2="19" y2="19"></line>
+    </svg>
+  </button>
+  <span id="paused-badge">Paused</span>
+</div>
+
+<div id="transition-overlay">
+  <div id="overlay-sub">Now Showing</div>
+  <div id="overlay-main">—</div>
+  <div id="overlay-detail">—</div>
+  <div id="overlay-brand">Legacy Roofing Performance</div>
+</div>
+
+<script>
+/* ─────────────────────────────────────────────────────────
+   CONFIG
+   Replace the SECTION_OFFSETS values with your window.scrollY
+   numbers from Chrome. Steps:
+     1. Open your dashboard URL in Chrome
+     2. F12 → Console tab
+     3. Scroll so the TOP of each section is at the top of screen
+     4. Type: window.scrollY  then Enter — note the number
+───────────────────────────────────────────────────────── */
+
+var BASE = 'https://phpstack-1482823-5634347.cloudwaysapps.com/dashboard_2026.php';
+
+var SECTION_OFFSETS = [
+  0,     // Commercial Replacement  — top of page, no scroll needed
+  1200,  // Commercial Repair       ← REPLACE with your scrollY
+  2400   // Territory Performance   ← REPLACE with your scrollY
+];
+
+var HOLD_MS    = 15000;  // 15 seconds on each panel
+var SCROLL_MS  = 30000;  // 30 seconds scrolling between panels
+var TRANS_MS   = 7000;   // 7 seconds on period transition screen
+var REFRESH_MS = 4 * 60 * 60 * 1000;
+
+var PERIODS = [
+  {
+    tabLabel: 'APR',
+    title: 'Monthly Overview: April',
+    overlayMain: 'April 2026',
+    overlayDetail: 'Monthly  ·  Office: All',
+    params: { office:'All', period:'month', month:4, quarter:1, year:2026 }
+  },
+  {
+    tabLabel: 'Q1',
+    title: 'Quarterly Overview: Q1',
+    overlayMain: 'Q1 2026',
+    overlayDetail: 'Quarterly  ·  Office: All',
+    params: { office:'All', period:'quarter', month:3, quarter:1, year:2026 }
+  },
+  {
+    tabLabel: 'YTD',
+    title: 'Year to Date: 2026',
+    overlayMain: '2026',
+    overlayDetail: 'Year to Date  ·  Office: All',
+    params: { office:'All', period:'year', month:4, quarter:4, year:2026 }
+  }
+];
+
+var PANELS = [
+  'Commercial Replacement',
+  'Commercial Repair',
+  'Territory Performance'
+];
+
+/* ─────────────────────────────────────────────────────────
+   STATE
+───────────────────────────────────────────────────────── */
+var pIdx      = 0;
+var panIdx    = 0;
+var isPaused  = false;
+var timer     = null;   // one timer at a time
+var progInt   = null;
+var holdStart = 0;
+var timeLeft  = HOLD_MS;
+var loadedAt  = 0;
+var zoom      = 1;
+var busy      = false;
+var phase     = 'hold'; // 'hold' or 'scroll' — tracks what we're currently doing
+
+/* ─────────────────────────────────────────────────────────
+   ELEMENTS
+───────────────────────────────────────────────────────── */
+var frame       = document.getElementById('dash-frame');
+var viewport    = document.getElementById('viewport');
+var progBar     = document.getElementById('progress-bar');
+var periodTit   = document.getElementById('period-title');
+var panelTit    = document.getElementById('panel-title');
+var clockEl     = document.getElementById('clock');
+var tabsEl      = document.getElementById('segment-tabs');
+var overlay     = document.getElementById('transition-overlay');
+var overlayM    = document.getElementById('overlay-main');
+var overlayD    = document.getElementById('overlay-detail');
+var controls    = document.getElementById('controls');
+var btnPause    = document.getElementById('btn-pause');
+var btnSkip     = document.getElementById('btn-skip');
+var btnBack     = document.getElementById('btn-back');
+var iconPause   = document.getElementById('icon-pause');
+var iconPlay    = document.getElementById('icon-play');
+var pausedBadge = document.getElementById('paused-badge');
+
+/* ─────────────────────────────────────────────────────────
+   ZOOM
+───────────────────────────────────────────────────────── */
+function applyZoom() {
+  zoom = viewport.clientWidth / 1920;
+  frame.style.transform = 'scale(' + zoom + ')';
+}
+window.addEventListener('resize', applyZoom);
+
+/* ─────────────────────────────────────────────────────────
+   CLOCK
+───────────────────────────────────────────────────────── */
+function tick() {
+  clockEl.textContent = new Date().toLocaleTimeString('en-US',
+    { hour:'2-digit', minute:'2-digit', hour12:true });
+}
+setInterval(tick, 1000);
+tick();
+
+/* ─────────────────────────────────────────────────────────
+   BUILD SIDE TABS
+───────────────────────────────────────────────────────── */
+function buildTabs() {
+  tabsEl.innerHTML = '';
+  for (var pi = 0; pi < PERIODS.length; pi++) {
+    var tab = document.createElement('div');
+    tab.className = 'seg-tab';
+    tab.id = 'tab-' + pi;
+
+    var lbl = document.createElement('div');
+    lbl.className = 'seg-tab-label';
+    lbl.textContent = PERIODS[pi].tabLabel;
+    tab.appendChild(lbl);
+
+    var dotsWrap = document.createElement('div');
+    dotsWrap.className = 'seg-tab-dots';
+    for (var di = 0; di < PANELS.length; di++) {
+      var d = document.createElement('div');
+      d.className = 'seg-dot';
+      d.id = 'dot-' + pi + '-' + di;
+      dotsWrap.appendChild(d);
+    }
+    tab.appendChild(dotsWrap);
+    tabsEl.appendChild(tab);
+  }
+}
+
+function updateTabs() {
+  for (var pi = 0; pi < PERIODS.length; pi++) {
+    var tab = document.getElementById('tab-' + pi);
+    if (pi === pIdx) { tab.classList.add('active'); }
+    else { tab.classList.remove('active'); }
+
+    for (var di = 0; di < PANELS.length; di++) {
+      var dot = document.getElementById('dot-' + pi + '-' + di);
+      if (pi === pIdx && di === panIdx) { dot.classList.add('active'); }
+      else { dot.classList.remove('active'); }
+    }
+  }
+}
+
+/* ─────────────────────────────────────────────────────────
+   URL BUILDER
+───────────────────────────────────────────────────────── */
+function buildURL(params) {
+  var p = Object.assign({}, params, { _t: Date.now() });
+  var q = new URLSearchParams(p);
+  return BASE + '?' + q.toString();
+}
+
+/* ─────────────────────────────────────────────────────────
+   SCROLL IFRAME
+───────────────────────────────────────────────────────── */
+function scrollFrameTo(offset, durationMs) {
+  frame.style.transition = 'top ' + durationMs + 'ms cubic-bezier(0.45, 0, 0.2, 1)';
+  frame.style.top = '-' + (offset * zoom) + 'px';
+}
+
+/* ─────────────────────────────────────────────────────────
+   PROGRESS BAR  (only runs during hold phase)
+───────────────────────────────────────────────────────── */
+function startProg(duration) {
+  clearInterval(progInt);
+  holdStart = Date.now();
+  var startPct = 100 - (duration / HOLD_MS) * 100;
+  progInt = setInterval(function() {
+    var elapsed = Date.now() - holdStart;
+    var pct = Math.min(100, startPct + (elapsed / duration) * (100 - startPct));
+    progBar.style.width = pct + '%';
+    if (pct >= 100) clearInterval(progInt);
+  }, 60);
+}
+
+function stopProg() {
+  clearInterval(progInt);
+}
+
+/* ─────────────────────────────────────────────────────────
+   LOAD PERIOD
+───────────────────────────────────────────────────────── */
+function loadPeriod(pi, callback) {
+  frame.style.transition = 'none';
+  frame.style.top = '0px';
+  frame.onload = null;
+  frame.src = buildURL(PERIODS[pi].params);
+  loadedAt = Date.now();
+  frame.onload = function() {
+    frame.onload = null;
+    setTimeout(callback, 1500);
+  };
+}
+
+/* ─────────────────────────────────────────────────────────
+   TRANSITION OVERLAY
+───────────────────────────────────────────────────────── */
+function showTransition(period, callback) {
+  overlayM.textContent = period.overlayMain;
+  overlayD.textContent = period.overlayDetail;
+  overlay.classList.add('visible');
+  setTimeout(function() {
+    overlay.classList.remove('visible');
+    setTimeout(callback, 600);
+  }, TRANS_MS);
+}
+
+/* ─────────────────────────────────────────────────────────
+   RESET PAUSE UI
+───────────────────────────────────────────────────────── */
+function resetPauseUI() {
+  isPaused = false;
+  iconPause.style.display = 'block';
+  iconPlay.style.display  = 'none';
+  pausedBadge.classList.remove('show');
+  controls.classList.remove('always-show');
+}
+
+/* ─────────────────────────────────────────────────────────
+   THE SEQUENCE — hold then scroll, one step at a time
+
+   Step A — HOLD:
+     Show current panel label + dot.
+     Run progress bar for 15 seconds.
+     After 15s → go to Step B.
+
+   Step B — SCROLL:
+     Scroll iframe down to next panel over 30 seconds.
+     No progress bar during scroll (user can see it moving).
+     After 30s → bump panIdx, go to Step A.
+     If no next panel → period transition, then Step A.
+───────────────────────────────────────────────────────── */
+
+function stepHold() {
+  // We are now sitting on panIdx — show it, start 15s hold
+  clearTimeout(timer);
+  phase = 'hold';
+  timeLeft = HOLD_MS;
+  resetPauseUI();
+
+  periodTit.textContent = PERIODS[pIdx].title;
+  panelTit.textContent  = PANELS[panIdx];
+  updateTabs();
+
+  progBar.style.width = '0%';
+  startProg(HOLD_MS);
+  holdStart = Date.now();
+
+  timer = setTimeout(function() {
+    stepScroll();
+  }, HOLD_MS);
+}
+
+function stepScroll() {
+  // Hold done — scroll to next panel or transition period
+  clearTimeout(timer);
+  stopProg();
+  progBar.style.width = '0%';
+  phase = 'scroll';
+
+  var nextPan = panIdx + 1;
+
+  if (nextPan < PANELS.length) {
+    // Scroll down to next panel
+    scrollFrameTo(SECTION_OFFSETS[nextPan], SCROLL_MS);
+    timer = setTimeout(function() {
+      panIdx = nextPan;
+      stepHold();
+    }, SCROLL_MS);
+  } else {
+    // No more panels — period transition
+    var nextP = (pIdx + 1) % PERIODS.length;
+    busy = true;
+    showTransition(PERIODS[nextP], function() {
+      pIdx   = nextP;
+      panIdx = 0;
+      busy   = false;
+      loadPeriod(pIdx, function() {
+        // Panel 0 is at top of page — hold immediately for 15s
+        stepHold();
+      });
+    });
+  }
+}
+
+/* ─────────────────────────────────────────────────────────
+   PAUSE / RESUME
+───────────────────────────────────────────────────────── */
+function setPaused(val) {
+  isPaused = val;
+  iconPause.style.display = val ? 'none'  : 'block';
+  iconPlay.style.display  = val ? 'block' : 'none';
+  pausedBadge.classList.toggle('show', val);
+  controls.classList.toggle('always-show', val);
+
+  if (val) {
+    if (phase === 'hold') {
+      timeLeft = Math.max(500, HOLD_MS - (Date.now() - holdStart));
+    }
+    clearTimeout(timer);
+    stopProg();
+    // Freeze scroll
+    var cur = getComputedStyle(frame).top;
+    frame.style.transition = 'none';
+    frame.style.top = cur;
+  } else {
+    if (phase === 'hold') {
+      // Resume hold with remaining time
+      holdStart = Date.now();
+      startProg(timeLeft);
+      timer = setTimeout(function() {
+        stepScroll();
+      }, timeLeft);
+    } else {
+      // Was mid-scroll — just call stepScroll again from here
+      // (scroll will re-fire to the correct target position)
+      stepScroll();
+    }
+  }
+}
+
+btnPause.addEventListener('click', function() { setPaused(!isPaused); });
+
+/* ─────────────────────────────────────────────────────────
+   SKIP — jump immediately to next panel
+───────────────────────────────────────────────────────── */
+btnSkip.addEventListener('click', function() {
+  if (busy) return;
+  if (isPaused) { isPaused = false; resetPauseUI(); }
+  clearTimeout(timer);
+  stopProg();
+  stepScroll();
+});
+
+/* ─────────────────────────────────────────────────────────
+   BACK — go to previous panel
+───────────────────────────────────────────────────────── */
+btnBack.addEventListener('click', function() {
+  if (busy) return;
+  if (isPaused) { isPaused = false; resetPauseUI(); }
+  clearTimeout(timer);
+  stopProg();
+
+  if (panIdx > 0) {
+    panIdx = panIdx - 1;
+    // Scroll back up to previous panel
+    scrollFrameTo(SECTION_OFFSETS[panIdx], SCROLL_MS);
+    timer = setTimeout(function() {
+      stepHold();
+    }, SCROLL_MS);
+  } else {
+    // At first panel of this period — go to previous period
+    var prevP = (pIdx - 1 + PERIODS.length) % PERIODS.length;
+    busy = true;
+    showTransition(PERIODS[prevP], function() {
+      pIdx   = prevP;
+      panIdx = PANELS.length - 1;
+      busy   = false;
+      loadPeriod(pIdx, function() {
+        scrollFrameTo(SECTION_OFFSETS[panIdx], SCROLL_MS);
+        timer = setTimeout(function() {
+          stepHold();
+        }, SCROLL_MS);
+      });
+    });
+  }
+});
+
+/* ─────────────────────────────────────────────────────────
+   AUTO REFRESH every 4 hours
+───────────────────────────────────────────────────────── */
+setInterval(function() {
+  if (isPaused || busy || phase === 'scroll') return;
+  if (Date.now() - loadedAt > REFRESH_MS) {
+    busy = true;
+    loadPeriod(pIdx, function() {
+      // Re-scroll to current panel offset silently
+      frame.style.transition = 'none';
+      frame.style.top = '-' + (SECTION_OFFSETS[panIdx] * zoom) + 'px';
+      busy = false;
+    });
+  }
+}, 60000);
+
+/* ─────────────────────────────────────────────────────────
+   BOOT
+   Show transition screen, load first period, scroll to
+   panel 0 offset, then start the hold.
+───────────────────────────────────────────────────────── */
+buildTabs();
+applyZoom();
+
+busy = true;
+showTransition(PERIODS[0], function() {
+  loadPeriod(0, function() {
+    busy = false;
+    // Commercial Replacement is at top of page — hold immediately for 15s
+    stepHold();
+  });
+});
+</script>
+</body>
+</html>
