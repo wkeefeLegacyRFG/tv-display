@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Legacy Roofing — TV Display Controller</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #0a0a0f;
+    color: #fff;
+    font-family: 'Segoe UI', Arial, sans-serif;
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── Top status bar ── */
+  #status-bar {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: 44px;
+    background: rgba(10,10,20,0.92);
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    z-index: 100;
+    backdrop-filter: blur(8px);
+  }
+
+  #status-bar .brand {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    color: #e87722;
+    text-transform: uppercase;
+  }
+
+  #status-bar .period-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #fff;
+    letter-spacing: 0.05em;
+  }
+
+  #status-bar .right-info {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    font-size: 12px;
+    color: rgba(255,255,255,0.5);
+  }
+
+  #status-bar .right-info .clock {
+    font-size: 13px;
+    color: rgba(255,255,255,0.8);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Progress bar showing time until next scroll */
+  #progress-bar {
+    position: fixed;
+    bottom: 0; left: 0;
+    height: 3px;
+    background: #e87722;
+    transition: width 0.25s linear;
+    z-index: 100;
+  }
+
+  /* Dots indicator */
+  #dots {
+    position: fixed;
+    right: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 100;
+  }
+
+  .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.2);
+    transition: background 0.4s;
+  }
+
+  .dot.active {
+    background: #e87722;
+  }
+
+  /* ── Iframe viewport ── */
+  #viewport {
+    position: fixed;
+    top: 44px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    overflow: hidden;
+  }
+
+  #dashboard-frame {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    /* tall enough to contain the full dashboard */
+    height: 400%;
+    border: none;
+    transition: top 4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* ── Overlay for period transitions ── */
+  #transition-overlay {
+    position: fixed;
+    inset: 0;
+    background: #0a0a0f;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.7s ease;
+    z-index: 99;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+  }
+
+  #transition-overlay.show {
+    opacity: 1;
+    pointer-events: all;
+  }
+
+  #transition-overlay .next-label {
+    font-size: 14px;
+    color: rgba(255,255,255,0.4);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  #transition-overlay .next-period {
+    font-size: 36px;
+    font-weight: 700;
+    color: #fff;
+  }
+
+  #transition-overlay .logo-line {
+    font-size: 13px;
+    font-weight: 600;
+    color: #e87722;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-top: 16px;
+  }
+
+  /* ── Section label toast ── */
+  #section-toast {
+    position: fixed;
+    left: 20px;
+    bottom: 20px;
+    background: rgba(232,119,34,0.95);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 7px 16px;
+    border-radius: 6px;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 0.4s, transform 0.4s;
+    z-index: 101;
+  }
+
+  #section-toast.show {
+    opacity: 1;
+    transform: translateY(0);
+  }
+</style>
+</head>
+<body>
+
+<!-- Status bar -->
+<div id="status-bar">
+  <div class="brand">Legacy Roofing</div>
+  <div class="period-label" id="period-label">Loading…</div>
+  <div class="right-info">
+    <span id="section-indicator">—</span>
+    <span class="clock" id="clock">—</span>
+  </div>
+</div>
+
+<!-- Dots nav -->
+<div id="dots">
+  <!-- filled dynamically -->
+</div>
+
+<!-- Main iframe -->
+<div id="viewport">
+  <iframe id="dashboard-frame" src="about:blank" scrolling="no" allowfullscreen></iframe>
+</div>
+
+<!-- Progress bar -->
+<div id="progress-bar" style="width:0%"></div>
+
+<!-- Section toast -->
+<div id="section-toast" id="section-toast"></div>
+
+<!-- Period transition overlay -->
+<div id="transition-overlay">
+  <div class="next-label">Now Showing</div>
+  <div class="next-period" id="overlay-period">—</div>
+  <div class="logo-line">Legacy Roofing Performance</div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════
+   CONFIGURATION
+═══════════════════════════════════════════════════ */
+
+const BASE_URL = 'https://phpstack-1482823-5634347.cloudwaysapps.com/dashboard_2026.php';
+
+// How many pixels from top each dashboard section starts.
+// You may need to tune these to match your actual dashboard layout.
+const SECTION_OFFSETS = {
+  top: 0,           // Section 1: Sales dashboard / overview
+  commercial: 1200, // Section 2: Commercial replacement dashboard
+  territory: 2400   // Section 3: Territory dashboard
+};
+
+const HOLD_MS       = 15000;  // 15 seconds sit time per section
+const SCROLL_MS     = 4000;   // 4 seconds smooth scroll between sections
+const REFRESH_EVERY = 4 * 60 * 60 * 1000; // Re-load iframe every 4 hours
+const TRANSITION_MS = 1800;   // Period transition overlay duration
+
+// The three periods in order
+const PERIODS = [
+  {
+    label: 'April 2026 — Monthly',
+    overlayLabel: 'April 2026  ·  Monthly',
+    params: { period: 'month', month: 4, quarter: 1, year: 2026 }
+  },
+  {
+    label: 'Q1 2026 — Quarterly',
+    overlayLabel: 'Q1 2026  ·  Quarterly',
+    params: { period: 'quarter', month: 3, quarter: 1, year: 2026 }
+  },
+  {
+    label: '2026 — Year to Date',
+    overlayLabel: '2026  ·  Year to Date',
+    params: { period: 'ytd', month: 12, quarter: 4, year: 2026 }
+  }
+];
+
+const SECTIONS = [
+  { key: 'top',        label: 'Sales Overview' },
+  { key: 'commercial', label: 'Commercial Replacement' },
+  { key: 'territory',  label: 'Territory Dashboard' }
+];
+
+/* ═══════════════════════════════════════════════════
+   STATE
+═══════════════════════════════════════════════════ */
+
+let currentPeriodIndex  = 0;
+let currentSectionIndex = 0;
+let iframeLoadTime      = 0;
+let holdTimer           = null;
+let progressInterval    = null;
+let holdStart           = 0;
+
+const frame       = document.getElementById('dashboard-frame');
+const progressBar = document.getElementById('progress-bar');
+const periodLabel = document.getElementById('period-label');
+const sectionInd  = document.getElementById('section-indicator');
+const overlay     = document.getElementById('transition-overlay');
+const overlayPer  = document.getElementById('overlay-period');
+const toast       = document.getElementById('section-toast');
+const dotsEl      = document.getElementById('dots');
+const clockEl     = document.getElementById('clock');
+
+/* ═══════════════════════════════════════════════════
+   DOTS
+═══════════════════════════════════════════════════ */
+
+function buildDots() {
+  dotsEl.innerHTML = '';
+  const total = PERIODS.length * SECTIONS.length;
+  for (let i = 0; i < total; i++) {
+    const d = document.createElement('div');
+    d.className = 'dot';
+    d.id = `dot-${i}`;
+    dotsEl.appendChild(d);
+  }
+}
+
+function updateDots() {
+  const active = currentPeriodIndex * SECTIONS.length + currentSectionIndex;
+  document.querySelectorAll('.dot').forEach((d, i) => {
+    d.classList.toggle('active', i === active);
+  });
+}
+
+/* ═══════════════════════════════════════════════════
+   CLOCK
+═══════════════════════════════════════════════════ */
+
+function updateClock() {
+  const now = new Date();
+  clockEl.textContent = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+/* ═══════════════════════════════════════════════════
+   IFRAME URL BUILDER
+═══════════════════════════════════════════════════ */
+
+function buildURL(params) {
+  const q = new URLSearchParams({
+    office: 'All',
+    period: params.period,
+    month:  params.month,
+    quarter: params.quarter,
+    year:   params.year,
+    _t:     Date.now() // cache bust
+  });
+  return `${BASE_URL}?${q.toString()}`;
+}
+
+/* ═══════════════════════════════════════════════════
+   IFRAME SCROLL CONTROL
+   We scroll the iframe's inner document via postMessage
+   AND also move the iframe element itself (fallback)
+═══════════════════════════════════════════════════ */
+
+function scrollIframeTo(offset, durationMs) {
+  // Primary approach: move the iframe element's top position
+  // so the visible viewport window moves down over the tall iframe.
+  // (This works when the iframe cannot be scripted cross-origin.)
+  const pct = (offset / 3600) * 100; // approximate % of content
+  frame.style.transition = `top ${durationMs}ms cubic-bezier(0.4, 0, 0.2, 1)`;
+  frame.style.top = `-${offset}px`;
+
+  // Secondary: also try to scroll inside the iframe (same-origin only)
+  try {
+    frame.contentWindow.scrollTo({ top: offset, behavior: 'smooth' });
+  } catch(e) {}
+}
+
+/* ═══════════════════════════════════════════════════
+   PROGRESS BAR
+═══════════════════════════════════════════════════ */
+
+function startProgress() {
+  holdStart = Date.now();
+  clearInterval(progressInterval);
+  progressInterval = setInterval(() => {
+    const elapsed = Date.now() - holdStart;
+    const pct = Math.min(100, (elapsed / HOLD_MS) * 100);
+    progressBar.style.width = pct + '%';
+    if (pct >= 100) clearInterval(progressInterval);
+  }, 50);
+}
+
+/* ═══════════════════════════════════════════════════
+   TOAST
+═══════════════════════════════════════════════════ */
+
+function showToast(text) {
+  toast.textContent = text;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 3000);
+}
+
+/* ═══════════════════════════════════════════════════
+   LOAD PERIOD INTO IFRAME
+═══════════════════════════════════════════════════ */
+
+function loadPeriod(periodIndex, then) {
+  const period = PERIODS[periodIndex];
+  frame.style.transition = 'none';
+  frame.style.top = '0px';
+  const url = buildURL(period.params);
+  frame.src = url;
+  iframeLoadTime = Date.now();
+
+  frame.onload = () => {
+    // Give a moment for dynamic content to paint
+    setTimeout(then, 1200);
+  };
+}
+
+/* ═══════════════════════════════════════════════════
+   SHOW TRANSITION OVERLAY
+═══════════════════════════════════════════════════ */
+
+function showTransition(label, done) {
+  overlayPer.textContent = label;
+  overlay.classList.add('show');
+  setTimeout(() => {
+    overlay.classList.remove('show');
+    setTimeout(done, 700);
+  }, TRANSITION_MS);
+}
+
+/* ═══════════════════════════════════════════════════
+   MAIN SEQUENCER
+═══════════════════════════════════════════════════ */
+
+function runSection() {
+  clearTimeout(holdTimer);
+
+  const period  = PERIODS[currentPeriodIndex];
+  const section = SECTIONS[currentSectionIndex];
+  const offset  = SECTION_OFFSETS[section.key];
+
+  periodLabel.textContent = period.label;
+  sectionInd.textContent  = section.label;
+  updateDots();
+
+  // Scroll to this section
+  progressBar.style.width = '0%';
+  scrollIframeTo(offset, SCROLL_MS);
+
+  // After scroll settles, start the 15-second hold
+  setTimeout(() => {
+    showToast(section.label);
+    startProgress();
+
+    holdTimer = setTimeout(() => {
+      advanceSection();
+    }, HOLD_MS);
+  }, SCROLL_MS + 200);
+}
+
+function advanceSection() {
+  clearTimeout(holdTimer);
+
+  const nextSection = currentSectionIndex + 1;
+
+  if (nextSection < SECTIONS.length) {
+    // More sections in this period
+    currentSectionIndex = nextSection;
+    runSection();
+  } else {
+    // Period complete — move to next period
+    const nextPeriod = (currentPeriodIndex + 1) % PERIODS.length;
+    currentSectionIndex = 0;
+
+    showTransition(PERIODS[nextPeriod].overlayLabel, () => {
+      currentPeriodIndex = nextPeriod;
+      loadPeriod(currentPeriodIndex, () => {
+        runSection();
+      });
+    });
+  }
+}
+
+/* ═══════════════════════════════════════════════════
+   AUTO REFRESH (every 4 hours)
+═══════════════════════════════════════════════════ */
+
+setInterval(() => {
+  // Reload will happen naturally when period transitions or we force it
+  const elapsed = Date.now() - iframeLoadTime;
+  if (elapsed > REFRESH_EVERY) {
+    // Silently reload without changing section by reloading the src
+    const period = PERIODS[currentPeriodIndex];
+    const url = buildURL(period.params);
+    frame.src = url;
+    iframeLoadTime = Date.now();
+  }
+}, 60 * 1000); // check every minute
+
+/* ═══════════════════════════════════════════════════
+   INIT
+═══════════════════════════════════════════════════ */
+
+buildDots();
+
+// Boot: show first period transition then start
+showTransition(PERIODS[0].overlayLabel, () => {
+  loadPeriod(0, () => {
+    runSection();
+  });
+});
+</script>
+</body>
+</html>
