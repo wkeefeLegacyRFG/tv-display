@@ -6,13 +6,13 @@
 <title>Legacy Roofing — TV Display</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-
+ 
   :root {
     --cyan: #abe1fa;
     --blue: #2c2f75;
     --dark: #07080f;
   }
-
+ 
   html, body {
     width: 100%; height: 100%;
     background: var(--dark);
@@ -20,7 +20,7 @@
     font-family: 'Segoe UI', Arial, sans-serif;
     overflow: hidden;
   }
-
+ 
   /* TOP BAR — not sticky */
   #top-bar {
     position: relative;
@@ -53,7 +53,7 @@
     font-variant-numeric: tabular-nums;
     min-width: 160px; text-align: right;
   }
-
+ 
   /* SIDE TABS */
   #segment-tabs {
     position: fixed; right: 14px; top: 50%;
@@ -90,14 +90,14 @@
   .seg-dot.active {
     background: var(--cyan); border-color: var(--cyan);
   }
-
+ 
   /* PROGRESS BAR */
   #progress-bar {
     position: fixed; bottom: 0; left: 0;
     height: 7px; background: var(--cyan);
     width: 0%; z-index: 400;
   }
-
+ 
   /* CONTROLS */
   #controls {
     position: fixed; bottom: 16px; left: 50%;
@@ -111,7 +111,7 @@
   }
   body:hover #controls { opacity: 1; }
   #controls.always-show { opacity: 1; }
-
+ 
   .ctrl-btn {
     background: none;
     border: 1px solid rgba(171,225,250,0.3);
@@ -133,7 +133,7 @@
     text-transform: uppercase; padding: 0 6px;
   }
   #paused-badge.show { display: block; }
-
+ 
   /* VIEWPORT + IFRAME */
   #viewport {
     position: fixed; top: 48px; left: 0; right: 0; bottom: 0;
@@ -144,7 +144,7 @@
     border: none; width: 1920px; height: 8000px;
     transform-origin: top left; transform: scale(1);
   }
-
+ 
   /* TRANSITION OVERLAY */
   #transition-overlay {
     position: fixed; inset: 0; background: var(--blue);
@@ -176,7 +176,7 @@
 </style>
 </head>
 <body>
-
+ 
 <div id="top-bar">
   <div class="brand">Legacy Roofing</div>
   <div class="center-info">
@@ -185,15 +185,15 @@
   </div>
   <div class="clock" id="clock">—</div>
 </div>
-
+ 
 <div id="segment-tabs"></div>
-
+ 
 <div id="viewport">
   <iframe id="dash-frame" src="about:blank" scrolling="no"></iframe>
 </div>
-
+ 
 <div id="progress-bar"></div>
-
+ 
 <div id="controls">
   <button class="ctrl-btn" id="btn-back">
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -218,14 +218,14 @@
   </button>
   <span id="paused-badge">Paused</span>
 </div>
-
+ 
 <div id="transition-overlay">
   <div id="overlay-sub">Now Showing</div>
   <div id="overlay-main">—</div>
   <div id="overlay-detail">—</div>
   <div id="overlay-brand">Legacy Roofing Performance</div>
 </div>
-
+ 
 <script>
 /* ─────────────────────────────────────────────────────────
    CONFIG
@@ -236,20 +236,20 @@
      3. Scroll so the TOP of each section is at the top of screen
      4. Type: window.scrollY  then Enter — note the number
 ───────────────────────────────────────────────────────── */
-
+ 
 var BASE = 'https://phpstack-1482823-5634347.cloudwaysapps.com/dashboard_2026.php';
-
+ 
 var SECTION_OFFSETS = [
   0,     // Commercial Replacement  — top of page, no scroll needed
   1200,  // Commercial Repair       ← REPLACE with your scrollY
   2400   // Territory Performance   ← REPLACE with your scrollY
 ];
-
+ 
 var HOLD_MS    = 15000;  // 15 seconds on each panel
 var SCROLL_MS  = 30000;  // 30 seconds scrolling between panels
 var TRANS_MS   = 7000;   // 7 seconds on period transition screen
 var REFRESH_MS = 4 * 60 * 60 * 1000;
-
+ 
 var PERIODS = [
   {
     tabLabel: 'APR',
@@ -273,13 +273,13 @@ var PERIODS = [
     params: { office:'All', period:'year', month:4, quarter:4, year:2026 }
   }
 ];
-
+ 
 var PANELS = [
   'Commercial Replacement',
   'Commercial Repair',
   'Territory Performance'
 ];
-
+ 
 /* ─────────────────────────────────────────────────────────
    STATE
 ───────────────────────────────────────────────────────── */
@@ -294,7 +294,7 @@ var loadedAt  = 0;
 var zoom      = 1;
 var busy      = false;
 var phase     = 'hold'; // 'hold' or 'scroll' — tracks what we're currently doing
-
+ 
 /* ─────────────────────────────────────────────────────────
    ELEMENTS
 ───────────────────────────────────────────────────────── */
@@ -315,7 +315,7 @@ var btnBack     = document.getElementById('btn-back');
 var iconPause   = document.getElementById('icon-pause');
 var iconPlay    = document.getElementById('icon-play');
 var pausedBadge = document.getElementById('paused-badge');
-
+ 
 /* ─────────────────────────────────────────────────────────
    ZOOM
 ───────────────────────────────────────────────────────── */
@@ -324,7 +324,7 @@ function applyZoom() {
   frame.style.transform = 'scale(' + zoom + ')';
 }
 window.addEventListener('resize', applyZoom);
-
+ 
 /* ─────────────────────────────────────────────────────────
    CLOCK
 ───────────────────────────────────────────────────────── */
@@ -334,7 +334,7 @@ function tick() {
 }
 setInterval(tick, 1000);
 tick();
-
+ 
 /* ─────────────────────────────────────────────────────────
    BUILD SIDE TABS
 ───────────────────────────────────────────────────────── */
@@ -344,12 +344,12 @@ function buildTabs() {
     var tab = document.createElement('div');
     tab.className = 'seg-tab';
     tab.id = 'tab-' + pi;
-
+ 
     var lbl = document.createElement('div');
     lbl.className = 'seg-tab-label';
     lbl.textContent = PERIODS[pi].tabLabel;
     tab.appendChild(lbl);
-
+ 
     var dotsWrap = document.createElement('div');
     dotsWrap.className = 'seg-tab-dots';
     for (var di = 0; di < PANELS.length; di++) {
@@ -362,13 +362,13 @@ function buildTabs() {
     tabsEl.appendChild(tab);
   }
 }
-
+ 
 function updateTabs() {
   for (var pi = 0; pi < PERIODS.length; pi++) {
     var tab = document.getElementById('tab-' + pi);
     if (pi === pIdx) { tab.classList.add('active'); }
     else { tab.classList.remove('active'); }
-
+ 
     for (var di = 0; di < PANELS.length; di++) {
       var dot = document.getElementById('dot-' + pi + '-' + di);
       if (pi === pIdx && di === panIdx) { dot.classList.add('active'); }
@@ -376,7 +376,7 @@ function updateTabs() {
     }
   }
 }
-
+ 
 /* ─────────────────────────────────────────────────────────
    URL BUILDER
 ───────────────────────────────────────────────────────── */
@@ -385,7 +385,7 @@ function buildURL(params) {
   var q = new URLSearchParams(p);
   return BASE + '?' + q.toString();
 }
-
+ 
 /* ─────────────────────────────────────────────────────────
    SCROLL IFRAME
 ───────────────────────────────────────────────────────── */
@@ -393,7 +393,7 @@ function scrollFrameTo(offset, durationMs) {
   frame.style.transition = 'top ' + durationMs + 'ms cubic-bezier(0.45, 0, 0.2, 1)';
   frame.style.top = '-' + (offset * zoom) + 'px';
 }
-
+ 
 /* ─────────────────────────────────────────────────────────
    PROGRESS BAR  (only runs during hold phase)
 ───────────────────────────────────────────────────────── */
@@ -408,11 +408,11 @@ function startProg(duration) {
     if (pct >= 100) clearInterval(progInt);
   }, 60);
 }
-
+ 
 function stopProg() {
   clearInterval(progInt);
 }
-
+ 
 /* ─────────────────────────────────────────────────────────
    LOAD PERIOD
 ───────────────────────────────────────────────────────── */
@@ -427,7 +427,7 @@ function loadPeriod(pi, callback) {
     setTimeout(callback, 1500);
   };
 }
-
+ 
 /* ─────────────────────────────────────────────────────────
    TRANSITION OVERLAY
 ───────────────────────────────────────────────────────── */
@@ -440,7 +440,7 @@ function showTransition(period, callback) {
     setTimeout(callback, 600);
   }, TRANS_MS);
 }
-
+ 
 /* ─────────────────────────────────────────────────────────
    RESET PAUSE UI
 ───────────────────────────────────────────────────────── */
@@ -451,51 +451,51 @@ function resetPauseUI() {
   pausedBadge.classList.remove('show');
   controls.classList.remove('always-show');
 }
-
+ 
 /* ─────────────────────────────────────────────────────────
    THE SEQUENCE — hold then scroll, one step at a time
-
+ 
    Step A — HOLD:
      Show current panel label + dot.
      Run progress bar for 15 seconds.
      After 15s → go to Step B.
-
+ 
    Step B — SCROLL:
      Scroll iframe down to next panel over 30 seconds.
      No progress bar during scroll (user can see it moving).
      After 30s → bump panIdx, go to Step A.
      If no next panel → period transition, then Step A.
 ───────────────────────────────────────────────────────── */
-
+ 
 function stepHold() {
   // We are now sitting on panIdx — show it, start 15s hold
   clearTimeout(timer);
   phase = 'hold';
   timeLeft = HOLD_MS;
   resetPauseUI();
-
+ 
   periodTit.textContent = PERIODS[pIdx].title;
   panelTit.textContent  = PANELS[panIdx];
   updateTabs();
-
+ 
   progBar.style.width = '0%';
   startProg(HOLD_MS);
   holdStart = Date.now();
-
+ 
   timer = setTimeout(function() {
     stepScroll();
   }, HOLD_MS);
 }
-
+ 
 function stepScroll() {
   // Hold done — scroll to next panel or transition period
   clearTimeout(timer);
   stopProg();
   progBar.style.width = '0%';
   phase = 'scroll';
-
+ 
   var nextPan = panIdx + 1;
-
+ 
   if (nextPan < PANELS.length) {
     // Scroll down to next panel
     scrollFrameTo(SECTION_OFFSETS[nextPan], SCROLL_MS);
@@ -518,7 +518,7 @@ function stepScroll() {
     });
   }
 }
-
+ 
 /* ─────────────────────────────────────────────────────────
    PAUSE / RESUME
 ───────────────────────────────────────────────────────── */
@@ -528,7 +528,7 @@ function setPaused(val) {
   iconPlay.style.display  = val ? 'block' : 'none';
   pausedBadge.classList.toggle('show', val);
   controls.classList.toggle('always-show', val);
-
+ 
   if (val) {
     if (phase === 'hold') {
       timeLeft = Math.max(500, HOLD_MS - (Date.now() - holdStart));
@@ -554,9 +554,9 @@ function setPaused(val) {
     }
   }
 }
-
+ 
 btnPause.addEventListener('click', function() { setPaused(!isPaused); });
-
+ 
 /* ─────────────────────────────────────────────────────────
    SKIP — jump immediately to next panel
 ───────────────────────────────────────────────────────── */
@@ -567,7 +567,7 @@ btnSkip.addEventListener('click', function() {
   stopProg();
   stepScroll();
 });
-
+ 
 /* ─────────────────────────────────────────────────────────
    BACK — go to previous panel
 ───────────────────────────────────────────────────────── */
@@ -576,7 +576,7 @@ btnBack.addEventListener('click', function() {
   if (isPaused) { isPaused = false; resetPauseUI(); }
   clearTimeout(timer);
   stopProg();
-
+ 
   if (panIdx > 0) {
     panIdx = panIdx - 1;
     // Scroll back up to previous panel
@@ -601,7 +601,45 @@ btnBack.addEventListener('click', function() {
     });
   }
 });
-
+ 
+/* ─────────────────────────────────────────────────────────
+   KEEP SCREEN AWAKE
+   Simulates user activity every 30 seconds so the Fire TV
+   browser never considers the page idle and sleeps.
+───────────────────────────────────────────────────────── */
+(function keepAwake() {
+  // 1. Dispatch a fake mousemove event every 30 seconds
+  setInterval(function() {
+    var e = new MouseEvent('mousemove', { bubbles: true, cancelable: true,
+      clientX: Math.floor(Math.random() * window.innerWidth),
+      clientY: Math.floor(Math.random() * window.innerHeight) });
+    document.dispatchEvent(e);
+  }, 30000);
+ 
+  // 2. Use a tiny invisible video element — browsers won't sleep
+  //    while a video is "playing" (even a blank one)
+  var v = document.createElement('video');
+  v.setAttribute('loop', '');
+  v.setAttribute('playsinline', '');
+  v.setAttribute('muted', '');
+  v.style.cssText = 'position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;z-index:-1;';
+  // Minimal valid MP4 — a single black frame, base64 encoded
+  v.src = 'data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAAIZnJlZQAAA2dtZGF0AAACrAYF//+o3EXpvebQv4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==';
+  document.body.appendChild(v);
+  v.play().catch(function(){});
+ 
+  // 3. Request a wake lock if the browser supports it (Chrome/Edge)
+  if ('wakeLock' in navigator) {
+    function requestWakeLock() {
+      navigator.wakeLock.request('screen').catch(function(){});
+    }
+    requestWakeLock();
+    document.addEventListener('visibilitychange', function() {
+      if (document.visibilityState === 'visible') requestWakeLock();
+    });
+  }
+})();
+ 
 /* ─────────────────────────────────────────────────────────
    AUTO REFRESH every 4 hours
 ───────────────────────────────────────────────────────── */
@@ -617,7 +655,7 @@ setInterval(function() {
     });
   }
 }, 60000);
-
+ 
 /* ─────────────────────────────────────────────────────────
    BOOT
    Show transition screen, load first period, scroll to
@@ -625,7 +663,7 @@ setInterval(function() {
 ───────────────────────────────────────────────────────── */
 buildTabs();
 applyZoom();
-
+ 
 busy = true;
 showTransition(PERIODS[0], function() {
   loadPeriod(0, function() {
