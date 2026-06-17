@@ -3,675 +3,503 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Legacy Roofing — TV Display</title>
+<title>Legacy Roofing — Live Performance TV</title>
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
- 
-  :root {
-    --cyan: #abe1fa;
-    --blue: #2c2f75;
-    --dark: #07080f;
+  /* ========================================================================
+     LEGACY ROOFING — TV DISPLAY CONTROLLER (v2)
+     Auto month/quarter • 4 panels • smooth scroll • Fire TV keep-awake
+     ======================================================================== */
+  :root{
+    --cyan:#abe1fa;   /* active / highlight */
+    --blue:#2c2f75;   /* inactive / backgrounds / retainers */
+    --bg:#0a0a12;
   }
- 
-  html, body {
-    width: 100%; height: 100%;
-    background: var(--dark);
-    color: #fff;
-    font-family: 'Segoe UI', Arial, sans-serif;
-    overflow: hidden;
-  }
- 
-  /* TOP BAR — not sticky */
-  #top-bar {
-    position: relative;
-    width: 100%; height: 48px;
-    background: var(--blue);
-    border-bottom: 2px solid var(--cyan);
-    display: flex; align-items: center;
-    justify-content: space-between;
-    padding: 0 20px; flex-shrink: 0;
-  }
-  #top-bar .brand {
-    font-size: 13px; font-weight: 700;
-    letter-spacing: 0.12em; color: var(--cyan);
-    text-transform: uppercase; min-width: 160px;
-  }
-  #top-bar .center-info {
-    display: flex; flex-direction: column;
-    align-items: center; gap: 2px;
-  }
-  #top-bar .period-title {
-    font-size: 14px; font-weight: 700;
-    color: #fff; letter-spacing: 0.06em; text-transform: uppercase;
-  }
-  #top-bar .panel-title {
-    font-size: 11px; color: var(--cyan);
-    letter-spacing: 0.08em; text-transform: uppercase;
-  }
-  #top-bar .clock {
-    font-size: 13px; color: rgba(255,255,255,0.75);
-    font-variant-numeric: tabular-nums;
-    min-width: 160px; text-align: right;
-  }
- 
-  /* SIDE TABS */
-  #segment-tabs {
-    position: fixed; right: 14px; top: 50%;
-    transform: translateY(-50%);
-    display: flex; flex-direction: column; gap: 12px;
-    z-index: 300;
-  }
-  .seg-tab {
-    display: flex; flex-direction: column;
-    align-items: center; gap: 5px;
-  }
-  .seg-tab-label {
-    font-size: 9px; font-weight: 700;
-    letter-spacing: 0.08em; text-transform: uppercase;
-    color: var(--cyan); background: var(--blue);
-    border: 1px solid rgba(171,225,250,0.25);
-    border-radius: 4px; padding: 2px 6px;
-    white-space: nowrap; opacity: 0.35;
-    transition: opacity 0.4s, border-color 0.4s;
-  }
-  .seg-tab.active .seg-tab-label {
-    opacity: 1; border-color: var(--cyan);
-  }
-  .seg-tab-dots {
-    display: flex; flex-direction: column;
-    gap: 5px; align-items: center;
-  }
-  .seg-dot {
-    width: 7px; height: 7px; border-radius: 50%;
-    background: var(--blue);
-    border: 1.5px solid rgba(171,225,250,0.2);
-    transition: background 0.4s, border-color 0.4s;
-  }
-  .seg-dot.active {
-    background: var(--cyan); border-color: var(--cyan);
-  }
- 
-  /* PROGRESS BAR */
-  #progress-bar {
-    position: fixed; bottom: 0; left: 0;
-    height: 7px; background: var(--cyan);
-    width: 0%; z-index: 400;
-  }
- 
-  /* CONTROLS */
-  #controls {
-    position: fixed; bottom: 16px; left: 50%;
-    transform: translateX(-50%);
-    display: flex; align-items: center; gap: 10px;
-    z-index: 400;
-    background: rgba(44,47,117,0.9);
-    border: 1px solid rgba(171,225,250,0.3);
-    border-radius: 40px; padding: 7px 18px;
-    opacity: 0; transition: opacity 0.4s;
-  }
-  body:hover #controls { opacity: 1; }
-  #controls.always-show { opacity: 1; }
- 
-  .ctrl-btn {
-    background: none;
-    border: 1px solid rgba(171,225,250,0.3);
-    border-radius: 50%; width: 36px; height: 36px;
-    display: flex; align-items: center; justify-content: center;
-    cursor: pointer; color: var(--cyan);
-    transition: background 0.2s, transform 0.1s;
-  }
-  .ctrl-btn:hover { background: rgba(171,225,250,0.12); }
-  .ctrl-btn:active { transform: scale(0.93); }
-  .ctrl-btn.primary {
-    width: 44px; height: 44px;
-    border-color: rgba(171,225,250,0.5);
-    background: rgba(171,225,250,0.08);
-  }
-  #paused-badge {
-    display: none; font-size: 11px; font-weight: 700;
-    letter-spacing: 0.1em; color: var(--cyan);
-    text-transform: uppercase; padding: 0 6px;
-  }
-  #paused-badge.show { display: block; }
- 
-  /* VIEWPORT + IFRAME */
-  #viewport {
-    position: fixed; top: 48px; left: 0; right: 0; bottom: 0;
-    overflow: hidden; background: var(--dark);
-  }
-  #dash-frame {
-    position: absolute; top: 0; left: 0;
-    border: none; width: 1920px; height: 8000px;
-    transform-origin: top left; transform: scale(1);
-  }
- 
-  /* TRANSITION OVERLAY */
-  #transition-overlay {
-    position: fixed; inset: 0; background: var(--blue);
-    opacity: 0; pointer-events: none; z-index: 500;
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center; gap: 12px;
-  }
-  #transition-overlay.visible {
-    opacity: 1; pointer-events: all;
-  }
-  #overlay-sub {
-    font-size: 12px; color: var(--cyan);
-    letter-spacing: 0.14em; text-transform: uppercase; opacity: 0.7;
-  }
-  #overlay-main {
-    font-size: 40px; font-weight: 800; color: #fff;
-  }
-  #overlay-detail {
-    font-size: 14px; color: rgba(255,255,255,0.55);
-    letter-spacing: 0.06em; margin-top: 4px;
-  }
-  #overlay-brand {
-    font-size: 12px; font-weight: 700; color: var(--cyan);
-    letter-spacing: 0.12em; text-transform: uppercase;
-    margin-top: 18px;
-    border: 1px solid rgba(171,225,250,0.35);
-    padding: 5px 16px; border-radius: 4px;
-  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);
+            font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;color:#fff}
+
+  /* ---- The visible TV area. The dashboard iframe lives inside #scaler,
+          rendered at a fixed design width then scaled to fit the screen. ---- */
+  #stage{position:fixed;left:0;right:0;top:46px;bottom:0;overflow:hidden;background:#fff}
+  #scaler{position:absolute;top:0;left:0;transform-origin:top left;will-change:transform}
+  #frame{display:block;border:0;background:#fff}
+
+  /* ---- Top brand bar (our overlay, not the dashboard's) ---- */
+  #topbar{position:fixed;top:0;left:0;right:0;height:46px;z-index:30;
+          background:var(--blue);border-bottom:3px solid var(--cyan);
+          display:flex;align-items:center;justify-content:space-between;padding:0 18px}
+  #brand{font-weight:800;letter-spacing:.5px;font-size:15px;color:#fff;white-space:nowrap}
+  #brand b{color:var(--cyan)}
+  #periodLabel{font-weight:800;font-size:15px;color:var(--cyan);text-align:center;flex:1}
+  #periodSub{font-weight:600;font-size:12px;color:#cfd2f5;margin-left:8px}
+  #clock{font-weight:700;font-size:13px;color:#cfd2f5;white-space:nowrap}
+
+  /* ---- Right-side panel nav (dots + label retainers) ---- */
+  #nav{position:fixed;right:14px;top:50%;transform:translateY(-50%);z-index:30;
+       display:flex;flex-direction:column;gap:14px;align-items:flex-end}
+  .navItem{display:flex;align-items:center;gap:8px}
+  .navLabel{font-size:12px;font-weight:800;padding:5px 11px;border-radius:999px;
+            background:var(--blue);color:#cfd2f5;border:2px solid var(--blue);
+            white-space:nowrap;opacity:.55;transition:.35s}
+  .navDot{width:13px;height:13px;border-radius:50%;background:transparent;
+          border:3px solid var(--blue);transition:.35s;flex:none}
+  .navItem.active .navLabel{background:var(--blue);color:var(--cyan);border-color:var(--cyan);opacity:1}
+  .navItem.active .navDot{background:var(--cyan);border-color:var(--cyan);
+                          box-shadow:0 0 14px var(--cyan)}
+
+  /* ---- Bottom progress bar (counts down the hold) ---- */
+  #progress{position:fixed;left:0;right:0;bottom:0;height:9px;background:rgba(44,47,117,.55);z-index:30}
+  #fill{height:100%;width:0;background:var(--cyan);box-shadow:0 0 12px var(--cyan)}
+
+  /* ---- Period transition banner ---- */
+  #banner{position:fixed;inset:0;z-index:40;display:flex;flex-direction:column;
+          align-items:center;justify-content:center;gap:14px;
+          background:radial-gradient(120% 120% at 50% 40%, #3a3f9c 0%, var(--blue) 55%, #14163d 100%);
+          opacity:0;pointer-events:none;transition:opacity .6s}
+  #banner.show{opacity:1}
+  #bannerKicker{font-size:18px;font-weight:700;letter-spacing:3px;color:var(--cyan);text-transform:uppercase}
+  #bannerTitle{font-size:64px;font-weight:900;color:#fff;text-align:center;line-height:1.05}
+  #bannerSub{font-size:20px;font-weight:600;color:#cfd2f5}
+  #bannerLogo{font-size:14px;font-weight:800;letter-spacing:2px;color:#8d92e0;margin-top:6px}
+
+  /* ---- Controls (back / pause / skip) ---- */
+  #controls{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);z-index:35;
+            display:flex;gap:10px;padding:8px 12px;border-radius:999px;
+            background:rgba(10,10,18,.72);border:2px solid var(--blue);
+            opacity:0;transition:opacity .3s}
+  #controls.show{opacity:1}
+  .ctrl{width:46px;height:46px;border-radius:50%;border:2px solid var(--cyan);
+        background:rgba(44,47,117,.65);color:var(--cyan);font-size:18px;cursor:pointer;
+        display:flex;align-items:center;justify-content:center}
+  .ctrl:hover{background:var(--cyan);color:var(--blue)}
+
+  /* ---- Calibration overlay (fallback, only if no auto layout) ---- */
+  #calib{position:fixed;inset:0;z-index:50;display:none;flex-direction:column;
+         align-items:center;justify-content:center;gap:18px;background:rgba(10,10,18,.92);text-align:center;padding:30px}
+  #calib.show{display:flex}
+  #calib h2{font-size:30px;color:var(--cyan)}
+  #calib p{font-size:18px;color:#cfd2f5;max-width:680px;line-height:1.5}
+  #calibStep{font-size:22px;font-weight:800;color:#fff}
+  .calibBtns{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
+  .calibBtns button{padding:12px 18px;border-radius:10px;border:2px solid var(--cyan);
+        background:var(--blue);color:#fff;font-size:16px;font-weight:700;cursor:pointer}
+
+  #toast{position:fixed;left:14px;bottom:22px;z-index:35;font-size:11px;color:#7e83c9;
+         background:rgba(10,10,18,.6);padding:4px 9px;border-radius:6px;opacity:0;transition:.4s}
+  #toast.show{opacity:1}
+  #keepawake{position:fixed;width:2px;height:2px;opacity:0;pointer-events:none;left:-10px;top:-10px}
 </style>
 </head>
 <body>
- 
-<div id="top-bar">
-  <div class="brand">Legacy Roofing</div>
-  <div class="center-info">
-    <div class="period-title" id="period-title">Loading…</div>
-    <div class="panel-title"  id="panel-title">—</div>
+
+  <div id="stage">
+    <div id="scaler"><iframe id="frame" scrolling="no" allow="autoplay"></iframe></div>
   </div>
-  <div class="clock" id="clock">—</div>
-</div>
- 
-<div id="segment-tabs"></div>
- 
-<div id="viewport">
-  <iframe id="dash-frame" src="about:blank" scrolling="no"></iframe>
-</div>
- 
-<div id="progress-bar"></div>
- 
-<div id="controls">
-  <button class="ctrl-btn" id="btn-back">
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-      <polygon points="19 20 9 12 19 4 19 20"></polygon>
-      <line x1="5" y1="19" x2="5" y2="5"></line>
-    </svg>
-  </button>
-  <button class="ctrl-btn primary" id="btn-pause">
-    <svg id="icon-pause" width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
-      <rect x="6" y="4" width="4" height="16" rx="1"></rect>
-      <rect x="14" y="4" width="4" height="16" rx="1"></rect>
-    </svg>
-    <svg id="icon-play" width="15" height="15" viewBox="0 0 24 24" fill="currentColor" style="display:none;margin-left:2px">
-      <polygon points="5 3 19 12 5 21 5 3"></polygon>
-    </svg>
-  </button>
-  <button class="ctrl-btn" id="btn-skip">
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-      <polygon points="5 4 15 12 5 20 5 4"></polygon>
-      <line x1="19" y1="5" x2="19" y2="19"></line>
-    </svg>
-  </button>
-  <span id="paused-badge">Paused</span>
-</div>
- 
-<div id="transition-overlay">
-  <div id="overlay-sub">Now Showing</div>
-  <div id="overlay-main">—</div>
-  <div id="overlay-detail">—</div>
-  <div id="overlay-brand">Legacy Roofing Performance</div>
-</div>
- 
+
+  <div id="topbar">
+    <div id="brand"><b>LEGACY ROOFING</b> · Live Performance</div>
+    <div id="periodLabel">Loading…<span id="periodSub"></span></div>
+    <div id="clock"></div>
+  </div>
+
+  <div id="nav"></div>
+
+  <div id="progress"><div id="fill"></div></div>
+
+  <div id="banner">
+    <div id="bannerKicker">Now Showing</div>
+    <div id="bannerTitle">Legacy Roofing</div>
+    <div id="bannerSub"></div>
+    <div id="bannerLogo">LIVE CRM PERFORMANCE</div>
+  </div>
+
+  <div id="controls">
+    <button class="ctrl" id="btnBack" title="Previous panel">◀</button>
+    <button class="ctrl" id="btnPause" title="Pause / Play">⏸</button>
+    <button class="ctrl" id="btnNext" title="Next panel">▶</button>
+  </div>
+
+  <div id="calib">
+    <h2>One-time setup</h2>
+    <div id="calibStep"></div>
+    <p>Use <b>↑ / ↓</b> on the remote (or the buttons below) to scroll the dashboard so the
+       top of the panel shown above sits just under the top bar. Then press <b>OK / Enter</b>
+       (or “Lock this panel”).</p>
+    <div class="calibBtns">
+      <button id="calUp">↑ Up</button>
+      <button id="calDown">↓ Down</button>
+      <button id="calLock">✓ Lock this panel</button>
+      <button id="calReset">Start over</button>
+    </div>
+    <p style="font-size:13px;opacity:.7">Tip: once you add the dashboard snippet (see the setup guide),
+       this calibration disappears and scrolling becomes automatic.</p>
+  </div>
+
+  <div id="toast"></div>
+  <video id="keepawake" muted playsinline></video>
+
 <script>
-/* ─────────────────────────────────────────────────────────
-   CONFIG
-   Replace the SECTION_OFFSETS values with your window.scrollY
-   numbers from Chrome. Steps:
-     1. Open your dashboard URL in Chrome
-     2. F12 → Console tab
-     3. Scroll so the TOP of each section is at the top of screen
-     4. Type: window.scrollY  then Enter — note the number
-───────────────────────────────────────────────────────── */
- 
-var BASE = 'https://phpstack-1482823-5634347.cloudwaysapps.com/dashboard_2026.php';
- 
-var SECTION_OFFSETS = [
-  0,     // Commercial Replacement  — top of page, no scroll needed
-  1200,  // Commercial Repair       ← REPLACE with your scrollY
-  2400   // Territory Performance   ← REPLACE with your scrollY
-];
- 
-var HOLD_MS    = 15000;  // 15 seconds on each panel
-var SCROLL_MS  = 30000;  // 30 seconds scrolling between panels
-var TRANS_MS   = 7000;   // 7 seconds on period transition screen
-var REFRESH_MS = 4 * 60 * 60 * 1000;
- 
-var PERIODS = [
-  {
-    tabLabel: 'APR',
-    title: 'Monthly Overview: April',
-    overlayMain: 'April 2026',
-    overlayDetail: 'Monthly  ·  Office: All',
-    params: { office:'All', period:'month', month:4, quarter:1, year:2026 }
-  },
-  {
-    tabLabel: 'Q1',
-    title: 'Quarterly Overview: Q1',
-    overlayMain: 'Q1 2026',
-    overlayDetail: 'Quarterly  ·  Office: All',
-    params: { office:'All', period:'quarter', month:3, quarter:1, year:2026 }
-  },
-  {
-    tabLabel: 'YTD',
-    title: 'Year to Date: 2026',
-    overlayMain: '2026',
-    overlayDetail: 'Year to Date  ·  Office: All',
-    params: { office:'All', period:'year', month:4, quarter:4, year:2026 }
-  }
-];
- 
-var PANELS = [
-  'Commercial Replacement',
-  'Commercial Repair',
-  'Territory Performance'
-];
- 
-/* ─────────────────────────────────────────────────────────
-   STATE
-───────────────────────────────────────────────────────── */
-var pIdx      = 0;
-var panIdx    = 0;
-var isPaused  = false;
-var timer     = null;   // one timer at a time
-var progInt   = null;
-var holdStart = 0;
-var timeLeft  = HOLD_MS;
-var loadedAt  = 0;
-var zoom      = 1;
-var busy      = false;
-var phase     = 'hold'; // 'hold' or 'scroll' — tracks what we're currently doing
- 
-/* ─────────────────────────────────────────────────────────
-   ELEMENTS
-───────────────────────────────────────────────────────── */
-var frame       = document.getElementById('dash-frame');
-var viewport    = document.getElementById('viewport');
-var progBar     = document.getElementById('progress-bar');
-var periodTit   = document.getElementById('period-title');
-var panelTit    = document.getElementById('panel-title');
-var clockEl     = document.getElementById('clock');
-var tabsEl      = document.getElementById('segment-tabs');
-var overlay     = document.getElementById('transition-overlay');
-var overlayM    = document.getElementById('overlay-main');
-var overlayD    = document.getElementById('overlay-detail');
-var controls    = document.getElementById('controls');
-var btnPause    = document.getElementById('btn-pause');
-var btnSkip     = document.getElementById('btn-skip');
-var btnBack     = document.getElementById('btn-back');
-var iconPause   = document.getElementById('icon-pause');
-var iconPlay    = document.getElementById('icon-play');
-var pausedBadge = document.getElementById('paused-badge');
- 
-/* ─────────────────────────────────────────────────────────
-   ZOOM
-───────────────────────────────────────────────────────── */
-function applyZoom() {
-  zoom = viewport.clientWidth / 1920;
-  frame.style.transform = 'scale(' + zoom + ')';
+/* ==========================================================================
+   CONFIG  —  edit these to change behavior. Everything you'd normally tweak
+             lives in this one block.
+   ========================================================================== */
+const CONFIG = {
+  // Your live dashboard (the iframe source). tv=1 tells the dashboard to hide
+  // its filter bar for a clean TV view (only works after you add the snippet).
+  DASHBOARD_BASE : 'https://phpstack-1482823-5634347.cloudwaysapps.com/dashboard_2026.php',
+  OFFICE         : 'All',          // 'All' | 'Akron' | 'Columbus'
+
+  HOLD_MS        : 15000,          // how long to sit on each panel (15s)
+  SCROLL_MS      : 30000,          // how long the slow scroll between panels takes (30s)
+  BANNER_MS      : 7000,           // how long the period banner shows (7s)
+  REFRESH_HOURS  : 4,              // reload live data every N hours
+
+  DESIGN_WIDTH   : 1920,           // render the dashboard at this width, then scale to the TV
+  TOP_PAD        : 20,             // small gap above a panel when parked (design px)
+  FALLBACK_FRAME_HEIGHT : 9000,    // iframe height used until the dashboard reports its real height
+
+  // Panel labels + order, used for the side nav and for calibration mode.
+  // (When the dashboard snippet is installed, labels come from the dashboard automatically.)
+  PANELS : [
+    { key:'replacement', label:'Commercial Replacement' },
+    { key:'repair',      label:'Commercial Repair' },
+    { key:'territory',   label:'Territory Performance' },
+    { key:'bdr',         label:'Business Development (BDR)' },
+  ],
+};
+
+/* ==========================================================================
+   STATE + ELEMENTS
+   ========================================================================== */
+const $ = id => document.getElementById(id);
+const stage=$('stage'), scaler=$('scaler'), frame=$('frame');
+const MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+let layout = null;            // {totalHeight, sections:[{key,label,top}]} from the dashboard
+let layoutResolve = null;     // resolves when a fresh layout arrives
+let periodIdx = 0, panelIdx = 0;
+let curY = 0;                 // current scroll position (design px)
+let paused = false;
+let pendingNav = null;        // {pi, ai} set by skip/back buttons
+let jump = false;             // true => snap to panel instead of animating
+let current = null;           // currently-running animation (for cancel)
+let lastRefresh = Date.now();
+
+/* ==========================================================================
+   PERIODS  —  auto-detect the current month / quarter / year on every loop
+   ========================================================================== */
+function currentPeriods(){
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth()+1;            // 1..12
+  const q = Math.floor((m-1)/3)+1;       // 1..4
+  return [
+    { id:'month',   kicker:'Monthly',   label:`${MONTHS[m-1]} ${y}`, sub:`Office: ${CONFIG.OFFICE}`,
+      params:{period:'month',   month:m, quarter:q, year:y} },
+    { id:'quarter', kicker:'Quarterly', label:`Q${q} ${y}`,          sub:`Office: ${CONFIG.OFFICE}`,
+      params:{period:'quarter', month:m, quarter:q, year:y} },
+    { id:'year',    kicker:'Year to Date', label:`${y} YTD`,         sub:`Office: ${CONFIG.OFFICE}`,
+      params:{period:'year',    month:m, quarter:q, year:y} },
+  ];
 }
-window.addEventListener('resize', applyZoom);
- 
-/* ─────────────────────────────────────────────────────────
-   CLOCK
-───────────────────────────────────────────────────────── */
-function tick() {
-  clockEl.textContent = new Date().toLocaleTimeString('en-US',
-    { hour:'2-digit', minute:'2-digit', hour12:true });
+function buildUrl(per){
+  const p = new URLSearchParams({ office:CONFIG.OFFICE, tv:'1', ...per.params });
+  return `${CONFIG.DASHBOARD_BASE}?${p.toString()}`;
 }
-setInterval(tick, 1000);
-tick();
- 
-/* ─────────────────────────────────────────────────────────
-   BUILD SIDE TABS
-───────────────────────────────────────────────────────── */
-function buildTabs() {
-  tabsEl.innerHTML = '';
-  for (var pi = 0; pi < PERIODS.length; pi++) {
-    var tab = document.createElement('div');
-    tab.className = 'seg-tab';
-    tab.id = 'tab-' + pi;
- 
-    var lbl = document.createElement('div');
-    lbl.className = 'seg-tab-label';
-    lbl.textContent = PERIODS[pi].tabLabel;
-    tab.appendChild(lbl);
- 
-    var dotsWrap = document.createElement('div');
-    dotsWrap.className = 'seg-tab-dots';
-    for (var di = 0; di < PANELS.length; di++) {
-      var d = document.createElement('div');
-      d.className = 'seg-dot';
-      d.id = 'dot-' + pi + '-' + di;
-      dotsWrap.appendChild(d);
+
+/* ==========================================================================
+   SCROLL / SCALE  —  parent-controlled transform (cross-origin safe + smooth)
+   ========================================================================== */
+function applyTransform(){
+  const s = stage.clientWidth / CONFIG.DESIGN_WIDTH;
+  scaler.style.transform = `scale(${s}) translateY(${-curY}px)`;
+}
+function setScroll(y){ curY = Math.max(0, y); applyTransform(); }
+function setFrameHeight(h){
+  frame.style.width  = CONFIG.DESIGN_WIDTH+'px';
+  frame.style.height = h+'px';
+  scaler.style.width = CONFIG.DESIGN_WIDTH+'px';
+}
+window.addEventListener('resize', applyTransform);
+
+const easeInOut = p => p<0.5 ? 4*p*p*p : 1-Math.pow(-2*p+2,3)/2;
+
+/* A single pausable / cancelable timeline used for both scroll and hold.
+   Resolves true if it finished, false if it was canceled (skip/back). */
+function animate(ms, onProgress){
+  return new Promise(resolve=>{
+    let raf, elapsed=0, last=null;
+    const c = { cancel(){ cancelAnimationFrame(raf); if(current===c) current=null; resolve(false); } };
+    current = c;
+    function step(ts){
+      if(last==null) last=ts;
+      const dt = ts-last; last=ts;
+      if(!paused) elapsed += dt;
+      const p = ms<=0 ? 1 : Math.min(1, elapsed/ms);
+      onProgress(p);
+      if(p>=1){ if(current===c) current=null; resolve(true); return; }
+      raf = requestAnimationFrame(step);
     }
-    tab.appendChild(dotsWrap);
-    tabsEl.appendChild(tab);
-  }
-}
- 
-function updateTabs() {
-  for (var pi = 0; pi < PERIODS.length; pi++) {
-    var tab = document.getElementById('tab-' + pi);
-    if (pi === pIdx) { tab.classList.add('active'); }
-    else { tab.classList.remove('active'); }
- 
-    for (var di = 0; di < PANELS.length; di++) {
-      var dot = document.getElementById('dot-' + pi + '-' + di);
-      if (pi === pIdx && di === panIdx) { dot.classList.add('active'); }
-      else { dot.classList.remove('active'); }
-    }
-  }
-}
- 
-/* ─────────────────────────────────────────────────────────
-   URL BUILDER
-───────────────────────────────────────────────────────── */
-function buildURL(params) {
-  var p = Object.assign({}, params, { _t: Date.now() });
-  var q = new URLSearchParams(p);
-  return BASE + '?' + q.toString();
-}
- 
-/* ─────────────────────────────────────────────────────────
-   SCROLL IFRAME
-───────────────────────────────────────────────────────── */
-function scrollFrameTo(offset, durationMs) {
-  frame.style.transition = 'top ' + durationMs + 'ms cubic-bezier(0.45, 0, 0.2, 1)';
-  frame.style.top = '-' + (offset * zoom) + 'px';
-}
- 
-/* ─────────────────────────────────────────────────────────
-   PROGRESS BAR  (only runs during hold phase)
-───────────────────────────────────────────────────────── */
-function startProg(duration) {
-  clearInterval(progInt);
-  holdStart = Date.now();
-  var startPct = 100 - (duration / HOLD_MS) * 100;
-  progInt = setInterval(function() {
-    var elapsed = Date.now() - holdStart;
-    var pct = Math.min(100, startPct + (elapsed / duration) * (100 - startPct));
-    progBar.style.width = pct + '%';
-    if (pct >= 100) clearInterval(progInt);
-  }, 60);
-}
- 
-function stopProg() {
-  clearInterval(progInt);
-}
- 
-/* ─────────────────────────────────────────────────────────
-   LOAD PERIOD
-───────────────────────────────────────────────────────── */
-function loadPeriod(pi, callback) {
-  frame.style.transition = 'none';
-  frame.style.top = '0px';
-  frame.onload = null;
-  frame.src = buildURL(PERIODS[pi].params);
-  loadedAt = Date.now();
-  frame.onload = function() {
-    frame.onload = null;
-    setTimeout(callback, 1500);
-  };
-}
- 
-/* ─────────────────────────────────────────────────────────
-   TRANSITION OVERLAY
-───────────────────────────────────────────────────────── */
-function showTransition(period, callback) {
-  overlayM.textContent = period.overlayMain;
-  overlayD.textContent = period.overlayDetail;
-  overlay.classList.add('visible');
-  setTimeout(function() {
-    overlay.classList.remove('visible');
-    setTimeout(callback, 600);
-  }, TRANS_MS);
-}
- 
-/* ─────────────────────────────────────────────────────────
-   RESET PAUSE UI
-───────────────────────────────────────────────────────── */
-function resetPauseUI() {
-  isPaused = false;
-  iconPause.style.display = 'block';
-  iconPlay.style.display  = 'none';
-  pausedBadge.classList.remove('show');
-  controls.classList.remove('always-show');
-}
- 
-/* ─────────────────────────────────────────────────────────
-   THE SEQUENCE — hold then scroll, one step at a time
- 
-   Step A — HOLD:
-     Show current panel label + dot.
-     Run progress bar for 15 seconds.
-     After 15s → go to Step B.
- 
-   Step B — SCROLL:
-     Scroll iframe down to next panel over 30 seconds.
-     No progress bar during scroll (user can see it moving).
-     After 30s → bump panIdx, go to Step A.
-     If no next panel → period transition, then Step A.
-───────────────────────────────────────────────────────── */
- 
-function stepHold() {
-  // We are now sitting on panIdx — show it, start 15s hold
-  clearTimeout(timer);
-  phase = 'hold';
-  timeLeft = HOLD_MS;
-  resetPauseUI();
- 
-  periodTit.textContent = PERIODS[pIdx].title;
-  panelTit.textContent  = PANELS[panIdx];
-  updateTabs();
- 
-  progBar.style.width = '0%';
-  startProg(HOLD_MS);
-  holdStart = Date.now();
- 
-  timer = setTimeout(function() {
-    stepScroll();
-  }, HOLD_MS);
-}
- 
-function stepScroll() {
-  // Hold done — scroll to next panel or transition period
-  clearTimeout(timer);
-  stopProg();
-  progBar.style.width = '0%';
-  phase = 'scroll';
- 
-  var nextPan = panIdx + 1;
- 
-  if (nextPan < PANELS.length) {
-    // Scroll down to next panel
-    scrollFrameTo(SECTION_OFFSETS[nextPan], SCROLL_MS);
-    timer = setTimeout(function() {
-      panIdx = nextPan;
-      stepHold();
-    }, SCROLL_MS);
-  } else {
-    // No more panels — period transition
-    var nextP = (pIdx + 1) % PERIODS.length;
-    busy = true;
-    showTransition(PERIODS[nextP], function() {
-      pIdx   = nextP;
-      panIdx = 0;
-      busy   = false;
-      loadPeriod(pIdx, function() {
-        // Panel 0 is at top of page — hold immediately for 15s
-        stepHold();
-      });
-    });
-  }
-}
- 
-/* ─────────────────────────────────────────────────────────
-   PAUSE / RESUME
-───────────────────────────────────────────────────────── */
-function setPaused(val) {
-  isPaused = val;
-  iconPause.style.display = val ? 'none'  : 'block';
-  iconPlay.style.display  = val ? 'block' : 'none';
-  pausedBadge.classList.toggle('show', val);
-  controls.classList.toggle('always-show', val);
- 
-  if (val) {
-    if (phase === 'hold') {
-      timeLeft = Math.max(500, HOLD_MS - (Date.now() - holdStart));
-    }
-    clearTimeout(timer);
-    stopProg();
-    // Freeze scroll
-    var cur = getComputedStyle(frame).top;
-    frame.style.transition = 'none';
-    frame.style.top = cur;
-  } else {
-    if (phase === 'hold') {
-      // Resume hold with remaining time
-      holdStart = Date.now();
-      startProg(timeLeft);
-      timer = setTimeout(function() {
-        stepScroll();
-      }, timeLeft);
-    } else {
-      // Was mid-scroll — just call stepScroll again from here
-      // (scroll will re-fire to the correct target position)
-      stepScroll();
-    }
-  }
-}
- 
-btnPause.addEventListener('click', function() { setPaused(!isPaused); });
- 
-/* ─────────────────────────────────────────────────────────
-   SKIP — jump immediately to next panel
-───────────────────────────────────────────────────────── */
-btnSkip.addEventListener('click', function() {
-  if (busy) return;
-  if (isPaused) { isPaused = false; resetPauseUI(); }
-  clearTimeout(timer);
-  stopProg();
-  stepScroll();
-});
- 
-/* ─────────────────────────────────────────────────────────
-   BACK — go to previous panel
-───────────────────────────────────────────────────────── */
-btnBack.addEventListener('click', function() {
-  if (busy) return;
-  if (isPaused) { isPaused = false; resetPauseUI(); }
-  clearTimeout(timer);
-  stopProg();
- 
-  if (panIdx > 0) {
-    panIdx = panIdx - 1;
-    // Scroll back up to previous panel
-    scrollFrameTo(SECTION_OFFSETS[panIdx], SCROLL_MS);
-    timer = setTimeout(function() {
-      stepHold();
-    }, SCROLL_MS);
-  } else {
-    // At first panel of this period — go to previous period
-    var prevP = (pIdx - 1 + PERIODS.length) % PERIODS.length;
-    busy = true;
-    showTransition(PERIODS[prevP], function() {
-      pIdx   = prevP;
-      panIdx = PANELS.length - 1;
-      busy   = false;
-      loadPeriod(pIdx, function() {
-        scrollFrameTo(SECTION_OFFSETS[panIdx], SCROLL_MS);
-        timer = setTimeout(function() {
-          stepHold();
-        }, SCROLL_MS);
-      });
-    });
-  }
-});
- 
-/* ─────────────────────────────────────────────────────────
-   KEEP SCREEN AWAKE
-   Simulates user activity every 30 seconds so the Fire TV
-   browser never considers the page idle and sleeps.
-───────────────────────────────────────────────────────── */
-(function keepAwake() {
-  // 1. Dispatch a fake mousemove event every 30 seconds
-  setInterval(function() {
-    var e = new MouseEvent('mousemove', { bubbles: true, cancelable: true,
-      clientX: Math.floor(Math.random() * window.innerWidth),
-      clientY: Math.floor(Math.random() * window.innerHeight) });
-    document.dispatchEvent(e);
-  }, 30000);
- 
-  // 2. Use a tiny invisible video element — browsers won't sleep
-  //    while a video is "playing" (even a blank one)
-  var v = document.createElement('video');
-  v.setAttribute('loop', '');
-  v.setAttribute('playsinline', '');
-  v.setAttribute('muted', '');
-  v.style.cssText = 'position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;z-index:-1;';
-  // Minimal valid MP4 — a single black frame, base64 encoded
-  v.src = 'data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAAIZnJlZQAAA2dtZGF0AAACrAYF//+o3EXpvebQv4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==';
-  document.body.appendChild(v);
-  v.play().catch(function(){});
- 
-  // 3. Request a wake lock if the browser supports it (Chrome/Edge)
-  if ('wakeLock' in navigator) {
-    function requestWakeLock() {
-      navigator.wakeLock.request('screen').catch(function(){});
-    }
-    requestWakeLock();
-    document.addEventListener('visibilitychange', function() {
-      if (document.visibilityState === 'visible') requestWakeLock();
-    });
-  }
-})();
- 
-/* ─────────────────────────────────────────────────────────
-   AUTO REFRESH every 4 hours
-───────────────────────────────────────────────────────── */
-setInterval(function() {
-  if (isPaused || busy || phase === 'scroll') return;
-  if (Date.now() - loadedAt > REFRESH_MS) {
-    busy = true;
-    loadPeriod(pIdx, function() {
-      // Re-scroll to current panel offset silently
-      frame.style.transition = 'none';
-      frame.style.top = '-' + (SECTION_OFFSETS[panIdx] * zoom) + 'px';
-      busy = false;
-    });
-  }
-}, 60000);
- 
-/* ─────────────────────────────────────────────────────────
-   BOOT
-   Show transition screen, load first period, scroll to
-   panel 0 offset, then start the hold.
-───────────────────────────────────────────────────────── */
-buildTabs();
-applyZoom();
- 
-busy = true;
-showTransition(PERIODS[0], function() {
-  loadPeriod(0, function() {
-    busy = false;
-    // Commercial Replacement is at top of page — hold immediately for 15s
-    stepHold();
+    raf = requestAnimationFrame(step);
   });
+}
+function cancelCurrent(){ if(current) current.cancel(); }
+
+function scrollTo(fromY, toY){
+  return animate(CONFIG.SCROLL_MS, p => setScroll(fromY + (toY-fromY)*easeInOut(p)));
+}
+function hold(){
+  $('fill').style.width = '0%';
+  return animate(CONFIG.HOLD_MS, p => $('fill').style.width = (p*100)+'%');
+}
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
+
+/* ==========================================================================
+   PANELS + SECTION POSITIONS
+   ========================================================================== */
+function getPanels(){
+  if(layout && layout.sections && layout.sections.length) return layout.sections;
+  return CONFIG.PANELS;
+}
+function getCal(){ try{ return JSON.parse(localStorage.getItem('lr_tv_cal')||'null'); }catch(e){ return null; } }
+function setCal(arr){ try{ localStorage.setItem('lr_tv_cal', JSON.stringify(arr)); }catch(e){} }
+
+// Returns an array of scroll targets (design px) aligned to getPanels(), or null if we need calibration.
+function sectionTops(){
+  if(layout && layout.sections && layout.sections.length)
+    return layout.sections.map(s => Math.max(0, s.top - CONFIG.TOP_PAD));
+  const cal = getCal();
+  if(cal && cal.length >= CONFIG.PANELS.length) return cal;
+  return null;
+}
+
+/* ==========================================================================
+   UI updates
+   ========================================================================== */
+function renderNav(panels, activeIdx){
+  const nav = $('nav'); nav.innerHTML='';
+  panels.forEach((pan, i)=>{
+    const item=document.createElement('div');
+    item.className='navItem'+(i===activeIdx?' active':'');
+    item.innerHTML = `<span class="navLabel">${(pan.label||'Panel '+(i+1)).replace(/^[^A-Za-z0-9]+/,'')}</span><span class="navDot"></span>`;
+    nav.appendChild(item);
+  });
+}
+function updateUI(per, panels, activeIdx){
+  $('periodLabel').firstChild.nodeValue = per.label+' ';
+  $('periodSub').textContent = '· '+per.kicker;
+  renderNav(panels, activeIdx);
+}
+function showBanner(per){
+  $('bannerKicker').textContent = per.kicker;
+  $('bannerTitle').textContent  = per.label;
+  $('bannerSub').textContent    = per.sub;
+  $('banner').classList.add('show');
+}
+function hideBanner(){ $('banner').classList.remove('show'); }
+function toast(t){ const el=$('toast'); el.textContent=t; el.classList.add('show'); clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove('show'),2500); }
+
+/* clock */
+setInterval(()=>{ const d=new Date();
+  $('clock').textContent = d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})
+    +' · '+ d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+},1000);
+
+/* ==========================================================================
+   LOAD A PERIOD (reload iframe, show banner, wait for layout)
+   ========================================================================== */
+async function loadPeriod(per){
+  showBanner(per);
+  setScroll(0);
+  setFrameHeight(layout?.totalHeight || CONFIG.FALLBACK_FRAME_HEIGHT);
+  const ready = new Promise(r => layoutResolve = r);
+  frame.onload = ()=>{ try{ frame.contentWindow.postMessage({source:'lr-tv',type:'request-layout'},'*'); }catch(e){} };
+  frame.src = buildUrl(per);
+
+  const t0 = Date.now();
+  await Promise.race([ ready, sleep(9000) ]);     // wait for dashboard layout, max 9s
+  const used = Date.now()-t0;
+  if(used < CONFIG.BANNER_MS) await sleep(CONFIG.BANNER_MS - used);
+
+  if(!sectionTops()){                              // no auto layout AND no calibration yet
+    hideBanner();
+    await calibrate();
+  }
+  hideBanner();
+}
+
+/* ==========================================================================
+   MAIN LOOP
+   ========================================================================== */
+async function driver(){
+  let periods = currentPeriods();
+  await loadPeriod(periods[periodIdx]);
+
+  while(true){
+    // handle a queued skip/back that crosses a period boundary
+    if(pendingNav){
+      const {pi, ai} = pendingNav; pendingNav=null;
+      if(pi !== periodIdx){ periodIdx = pi; await loadPeriod(periods[periodIdx]); }
+      panelIdx = ai; jump = true;
+    }
+
+    const panels = getPanels();
+    const tops   = sectionTops() || panels.map(()=>0);
+    const per    = periods[periodIdx];
+    updateUI(per, panels, panelIdx);
+
+    // position on the current panel
+    if(jump || panelIdx===0){
+      setScroll(tops[panelIdx] || 0);
+      jump = false;
+    } else {
+      const ok = await scrollTo(tops[panelIdx-1]||0, tops[panelIdx]||0);
+      if(!ok) continue;            // canceled by skip/back → re-evaluate
+    }
+
+    // hold
+    const held = await hold();
+    if(!held) continue;            // canceled by skip/back → re-evaluate
+
+    // periodic data refresh (also re-detects the current month/quarter)
+    if(Date.now()-lastRefresh > CONFIG.REFRESH_HOURS*3600*1000){
+      lastRefresh = Date.now(); periods = currentPeriods();
+      await loadPeriod(periods[periodIdx]);
+    }
+
+    // natural advance
+    panelIdx++;
+    if(panelIdx >= panels.length){
+      panelIdx = 0; periodIdx++;
+      if(periodIdx >= periods.length){ periodIdx = 0; periods = currentPeriods(); }
+      await loadPeriod(periods[periodIdx]);
+    }
+  }
+}
+
+/* ==========================================================================
+   NAV CONTROLS (skip / back / pause) + Fire TV remote keys
+   ========================================================================== */
+function go(delta){
+  const n = getPanels().length, P = 3, total = P*n;
+  let flat = ((periodIdx*n + panelIdx + delta) % total + total) % total;
+  pendingNav = { pi: Math.floor(flat/n), ai: flat%n };
+  jump = true;
+  cancelCurrent();
+  flashControls();
+}
+function togglePause(){
+  paused = !paused;
+  $('btnPause').textContent = paused ? '▶' : '⏸';
+  toast(paused ? 'Paused' : 'Playing');
+  flashControls();
+}
+$('btnNext').onclick  = ()=>go(+1);
+$('btnBack').onclick  = ()=>go(-1);
+$('btnPause').onclick = togglePause;
+
+let ctrlTimer=null;
+function flashControls(){
+  $('controls').classList.add('show');
+  clearTimeout(ctrlTimer);
+  if(!paused) ctrlTimer = setTimeout(()=>$('controls').classList.remove('show'), 4000);
+}
+document.addEventListener('mousemove', flashControls);
+
+document.addEventListener('keydown', e=>{
+  if(calMode){ return; }   // calibration handles its own keys
+  switch(e.key){
+    case 'ArrowRight': case 'MediaTrackNext':  go(+1); e.preventDefault(); break;
+    case 'ArrowLeft':  case 'MediaTrackPrevious': go(-1); e.preventDefault(); break;
+    case 'Enter': case ' ': case 'MediaPlayPause':
+    case 'MediaPlay': case 'MediaPause': togglePause(); e.preventDefault(); break;
+    default: flashControls();
+  }
 });
+
+/* ==========================================================================
+   CALIBRATION (fallback used only until the dashboard snippet is installed)
+   ========================================================================== */
+let calMode=false, calIdx=0, calVals=[];
+function calibrate(){
+  return new Promise(resolve=>{
+    calMode=true; calIdx=0; calVals=[];
+    setFrameHeight(CONFIG.FALLBACK_FRAME_HEIGHT);
+    $('calib').classList.add('show');
+    showCalStep();
+
+    const step = (dir)=>{ setScroll(curY + dir*120); };
+    const repeatHold = {};
+    const keyHandler = e=>{
+      if(e.key==='ArrowUp')   { step(-1); e.preventDefault(); }
+      if(e.key==='ArrowDown') { step(+1); e.preventDefault(); }
+      if(e.key==='Enter' || e.key===' ') { lock(); e.preventDefault(); }
+    };
+    const lock = ()=>{
+      calVals[calIdx] = curY;
+      calIdx++;
+      if(calIdx >= CONFIG.PANELS.length){
+        setCal(calVals);
+        cleanup(); resolve();
+      } else { showCalStep(); }
+    };
+    const reset = ()=>{ calIdx=0; calVals=[]; setScroll(0); showCalStep(); };
+    function cleanup(){
+      calMode=false;
+      $('calib').classList.remove('show');
+      document.removeEventListener('keydown', keyHandler, true);
+    }
+    document.addEventListener('keydown', keyHandler, true);
+    $('calUp').onclick   = ()=>step(-1);
+    $('calDown').onclick = ()=>step(+1);
+    $('calLock').onclick = lock;
+    $('calReset').onclick= reset;
+  });
+}
+function showCalStep(){
+  $('calibStep').textContent = `Panel ${calIdx+1} of ${CONFIG.PANELS.length}: ${CONFIG.PANELS[calIdx].label}`;
+}
+
+/* ==========================================================================
+   LAYOUT MESSAGES FROM THE DASHBOARD (auto mode)
+   ========================================================================== */
+window.addEventListener('message', e=>{
+  const d = e.data;
+  if(!d || d.source !== 'lr-dash') return;
+  if(d.type === 'layout'){
+    layout = d;
+    if(d.totalHeight) setFrameHeight(d.totalHeight);
+    applyTransform();
+    if(layoutResolve){ layoutResolve(); layoutResolve=null; }
+  }
+});
+
+/* ==========================================================================
+   KEEP THE FIRE TV AWAKE
+   ========================================================================== */
+(function keepAwake(){
+  // 1) Screen Wake Lock (re-acquire when the tab becomes visible again)
+  let wl=null;
+  async function lock(){ try{ wl = await navigator.wakeLock.request('screen'); }catch(e){} }
+  document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible') lock(); });
+  lock();
+
+  // 2) A perpetually-"playing" tiny canvas video — browsers rarely sleep during playback
+  try{
+    const cv=document.createElement('canvas'); cv.width=2; cv.height=2;
+    const cx=cv.getContext('2d');
+    const v=$('keepawake'); v.srcObject=cv.captureStream(1); v.play().catch(()=>{});
+    setInterval(()=>{ cx.fillStyle = (Math.floor(Date.now()/1000)%2) ? '#000' : '#010101'; cx.fillRect(0,0,2,2); }, 1000);
+  }catch(e){}
+
+  // 3) Periodic synthetic activity
+  setInterval(()=>{ window.dispatchEvent(new Event('mousemove')); }, 30000);
+})();
+
+/* ==========================================================================
+   GO
+   ========================================================================== */
+driver();
 </script>
 </body>
 </html>
