@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Legacy Roofing — Live Performance TV</title>
+<style>
+  /* ========================================================================
+     LEGACY ROOFING — TV DISPLAY CONTROLLER (v2)
+     Auto month/quarter • 4 panels • smooth scroll • Fire TV keep-awake
+     ======================================================================== */
+  :root{
+    --cyan:#abe1fa;   /* active / highlight */
+    --blue:#2c2f75;   /* inactive / backgrounds / retainers */
+    --bg:#0a0a12;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);
+            font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;color:#fff}
+
+  /* ---- The visible TV area. The dashboard iframe lives inside #scaler,
+          rendered at a fixed design width then scaled to fit the screen. ---- */
+  #stage{position:fixed;left:0;right:0;top:46px;bottom:0;overflow:hidden;background:#fff}
+  #scaler{position:absolute;top:0;left:0;transform-origin:top left;will-change:transform}
+  #frame{display:block;border:0;background:#fff}
+
+  /* ---- Top brand bar (our overlay, not the dashboard's) ---- */
+  #topbar{position:fixed;top:0;left:0;right:0;height:46px;z-index:30;
+          background:var(--blue);border-bottom:3px solid var(--cyan);
+          display:flex;align-items:center;justify-content:space-between;padding:0 18px}
+  #brand{font-weight:800;letter-spacing:.5px;font-size:15px;color:#fff;white-space:nowrap}
+  #brand b{color:var(--cyan)}
+  #periodLabel{font-weight:800;font-size:15px;color:var(--cyan);text-align:center;flex:1}
+  #periodSub{font-weight:600;font-size:12px;color:#cfd2f5;margin-left:8px}
+  #clock{font-weight:700;font-size:13px;color:#cfd2f5;white-space:nowrap}
+
+  /* ---- Right-side panel nav (dots + label retainers) ---- */
+  #nav{position:fixed;right:14px;top:50%;transform:translateY(-50%);z-index:30;
+       display:flex;flex-direction:column;gap:14px;align-items:flex-end}
+  .navItem{display:flex;align-items:center;gap:8px}
+  .navLabel{font-size:12px;font-weight:800;padding:5px 11px;border-radius:999px;
+            background:var(--blue);color:#cfd2f5;border:2px solid var(--blue);
+            white-space:nowrap;opacity:.55;transition:.35s}
+  .navDot{width:13px;height:13px;border-radius:50%;background:transparent;
+          border:3px solid var(--blue);transition:.35s;flex:none}
+  .navItem.active .navLabel{background:var(--blue);color:var(--cyan);border-color:var(--cyan);opacity:1}
+  .navItem.active .navDot{background:var(--cyan);border-color:var(--cyan);
+                          box-shadow:0 0 14px var(--cyan)}
+
+  /* ---- Bottom progress bar (counts down the hold) ---- */
+  #progress{position:fixed;left:0;right:0;bottom:0;height:9px;background:rgba(44,47,117,.55);z-index:30}
+  #fill{height:100%;width:0;background:var(--cyan);box-shadow:0 0 12px var(--cyan)}
+
+  /* ---- Period transition banner ---- */
+  #banner{position:fixed;inset:0;z-index:40;display:flex;flex-direction:column;
+          align-items:center;justify-content:center;gap:14px;
+          background:radial-gradient(120% 120% at 50% 40%, #3a3f9c 0%, var(--blue) 55%, #14163d 100%);
+          opacity:0;pointer-events:none;transition:opacity .6s}
+  #banner.show{opacity:1}
+  #bannerKicker{font-size:18px;font-weight:700;letter-spacing:3px;color:var(--cyan);text-transform:uppercase}
+  #bannerTitle{font-size:64px;font-weight:900;color:#fff;text-align:center;line-height:1.05}
+  #bannerSub{font-size:20px;font-weight:600;color:#cfd2f5}
+  #bannerLogo{font-size:14px;font-weight:800;letter-spacing:2px;color:#8d92e0;margin-top:6px}
+
+  /* ---- Controls (back / pause / skip) ---- */
+  #controls{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);z-index:35;
+            display:flex;gap:10px;padding:8px 12px;border-radius:999px;
+            background:rgba(10,10,18,.72);border:2px solid var(--blue);
+            opacity:0;transition:opacity .3s}
+  #controls.show{opacity:1}
+  .ctrl{width:46px;height:46px;border-radius:50%;border:2px solid var(--cyan);
+        background:rgba(44,47,117,.65);color:var(--cyan);font-size:18px;cursor:pointer;
+        display:flex;align-items:center;justify-content:center}
+  .ctrl:hover{background:var(--cyan);color:var(--blue)}
+
+  /* ---- Calibration overlay (fallback, only if no auto layout) ---- */
+  #calib{position:fixed;inset:0;z-index:50;display:none;flex-direction:column;
+         align-items:center;justify-content:center;gap:18px;background:rgba(10,10,18,.92);text-align:center;padding:30px}
+  #calib.show{display:flex}
+  #calib h2{font-size:30px;color:var(--cyan)}
+  #calib p{font-size:18px;color:#cfd2f5;max-width:680px;line-height:1.5}
+  #calibStep{font-size:22px;font-weight:800;color:#fff}
+  .calibBtns{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
+  .calibBtns button{padding:12px 18px;border-radius:10px;border:2px solid var(--cyan);
+        background:var(--blue);color:#fff;font-size:16px;font-weight:700;cursor:pointer}
+
+  #toast{position:fixed;left:14px;bottom:22px;z-index:35;font-size:11px;color:#7e83c9;
+         background:rgba(10,10,18,.6);padding:4px 9px;border-radius:6px;opacity:0;transition:.4s}
+  #toast.show{opacity:1}
+  #keepawake{position:fixed;width:2px;height:2px;opacity:0;pointer-events:none;left:-10px;top:-10px}
+</style>
+</head>
+<body>
+
+  <div id="stage">
+    <div id="scaler"><iframe id="frame" scrolling="no" allow="autoplay"></iframe></div>
+  </div>
+
+  <div id="topbar">
+    <div id="brand"><b>LEGACY ROOFING</b> · Live Performance</div>
+    <div id="periodLabel">Loading…<span id="periodSub"></span></div>
+    <div id="clock"></div>
+  </div>
+
+  <div id="nav"></div>
+
+  <div id="progress"><div id="fill"></div></div>
+
+  <div id="banner">
+    <div id="bannerKicker">Now Showing</div>
+    <div id="bannerTitle">Legacy Roofing</div>
+    <div id="bannerSub"></div>
+    <div id="bannerLogo">LIVE CRM PERFORMANCE</div>
+  </div>
+
+  <div id="controls">
+    <button class="ctrl" id="btnBack" title="Previous panel">◀</button>
+    <button class="ctrl" id="btnPause" title="Pause / Play">⏸</button>
+    <button class="ctrl" id="btnNext" title="Next panel">▶</button>
+  </div>
+
+  <div id="calib">
+    <h2>One-time setup</h2>
+    <div id="calibStep"></div>
+    <p>Use <b>↑ / ↓</b> on the remote (or the buttons below) to scroll the dashboard so the
+       top of the panel shown above sits just under the top bar. Then press <b>OK / Enter</b>
+       (or “Lock this panel”).</p>
+    <div class="calibBtns">
+      <button id="calUp">↑ Up</button>
+      <button id="calDown">↓ Down</button>
+      <button id="calLock">✓ Lock this panel</button>
+      <button id="calReset">Start over</button>
+    </div>
+    <p style="font-size:13px;opacity:.7">Tip: once you add the dashboard snippet (see the setup guide),
+       this calibration disappears and scrolling becomes automatic.</p>
+  </div>
+
+  <div id="toast"></div>
+  <video id="keepawake" muted playsinline></video>
+
+<script>
+/* ==========================================================================
+   CONFIG  —  edit these to change behavior. Everything you'd normally tweak
+             lives in this one block.
+   ========================================================================== */
+const CONFIG = {
+  // Your live dashboard (the iframe source). tv=1 tells the dashboard to hide
+  // its filter bar for a clean TV view (only works after you add the snippet).
+  DASHBOARD_BASE : 'https://phpstack-1482823-5634347.cloudwaysapps.com/dashboard_2026.php',
+  OFFICE         : 'All',          // 'All' | 'Akron' | 'Columbus'
+
+  HOLD_MS        : 15000,          // how long to sit on each panel (15s)
+  SCROLL_MS      : 30000,          // how long the slow scroll between panels takes (30s)
+  BANNER_MS      : 7000,           // how long the period banner shows (7s)
+  REFRESH_HOURS  : 4,              // reload live data every N hours
+
+  DESIGN_WIDTH   : 1920,           // render the dashboard at this width, then scale to the TV
+  TOP_PAD        : 20,             // small gap above a panel when parked (design px)
+  FALLBACK_FRAME_HEIGHT : 9000,    // iframe height used until the dashboard reports its real height
+
+  // Panel labels + order, used for the side nav and for calibration mode.
+  // (When the dashboard snippet is installed, labels come from the dashboard automatically.)
+  PANELS : [
+    { key:'replacement', label:'Commercial Replacement' },
+    { key:'repair',      label:'Commercial Repair' },
+    { key:'territory',   label:'Territory Performance' },
+    { key:'bdr',         label:'Business Development (BDR)' },
+  ],
+};
+
+/* ==========================================================================
+   STATE + ELEMENTS
+   ========================================================================== */
+const $ = id => document.getElementById(id);
+const stage=$('stage'), scaler=$('scaler'), frame=$('frame');
+const MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+let layout = null;            // {totalHeight, sections:[{key,label,top}]} from the dashboard
+let layoutResolve = null;     // resolves when a fresh layout arrives
+let periodIdx = 0, panelIdx = 0;
+let curY = 0;                 // current scroll position (design px)
+let paused = false;
+let pendingNav = null;        // {pi, ai} set by skip/back buttons
+let jump = false;             // true => snap to panel instead of animating
+let current = null;           // currently-running animation (for cancel)
+let lastRefresh = Date.now();
+
+/* ==========================================================================
+   PERIODS  —  auto-detect the current month / quarter / year on every loop
+   ========================================================================== */
+function currentPeriods(){
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth()+1;            // 1..12
+  const q = Math.floor((m-1)/3)+1;       // 1..4
+  return [
+    { id:'month',   kicker:'Monthly',   label:`${MONTHS[m-1]} ${y}`, sub:`Office: ${CONFIG.OFFICE}`,
+      params:{period:'month',   month:m, quarter:q, year:y} },
+    { id:'quarter', kicker:'Quarterly', label:`Q${q} ${y}`,          sub:`Office: ${CONFIG.OFFICE}`,
+      params:{period:'quarter', month:m, quarter:q, year:y} },
+    { id:'year',    kicker:'Year to Date', label:`${y} YTD`,         sub:`Office: ${CONFIG.OFFICE}`,
+      params:{period:'year',    month:m, quarter:q, year:y} },
+  ];
+}
+function buildUrl(per){
+  const p = new URLSearchParams({ office:CONFIG.OFFICE, tv:'1', ...per.params });
+  return `${CONFIG.DASHBOARD_BASE}?${p.toString()}`;
+}
+
+/* ==========================================================================
+   SCROLL / SCALE  —  parent-controlled transform (cross-origin safe + smooth)
+   ========================================================================== */
+function applyTransform(){
+  const s = stage.clientWidth / CONFIG.DESIGN_WIDTH;
+  scaler.style.transform = `scale(${s}) translateY(${-curY}px)`;
+}
+function setScroll(y){ curY = Math.max(0, y); applyTransform(); }
+function setFrameHeight(h){
+  frame.style.width  = CONFIG.DESIGN_WIDTH+'px';
+  frame.style.height = h+'px';
+  scaler.style.width = CONFIG.DESIGN_WIDTH+'px';
+}
+window.addEventListener('resize', applyTransform);
+
+const easeInOut = p => p<0.5 ? 4*p*p*p : 1-Math.pow(-2*p+2,3)/2;
+
+/* A single pausable / cancelable timeline used for both scroll and hold.
+   Resolves true if it finished, false if it was canceled (skip/back). */
+function animate(ms, onProgress){
+  return new Promise(resolve=>{
+    let raf, elapsed=0, last=null;
+    const c = { cancel(){ cancelAnimationFrame(raf); if(current===c) current=null; resolve(false); } };
+    current = c;
+    function step(ts){
+      if(last==null) last=ts;
+      const dt = ts-last; last=ts;
+      if(!paused) elapsed += dt;
+      const p = ms<=0 ? 1 : Math.min(1, elapsed/ms);
+      onProgress(p);
+      if(p>=1){ if(current===c) current=null; resolve(true); return; }
+      raf = requestAnimationFrame(step);
+    }
+    raf = requestAnimationFrame(step);
+  });
+}
+function cancelCurrent(){ if(current) current.cancel(); }
+
+function scrollTo(fromY, toY){
+  return animate(CONFIG.SCROLL_MS, p => setScroll(fromY + (toY-fromY)*easeInOut(p)));
+}
+function hold(){
+  $('fill').style.width = '0%';
+  return animate(CONFIG.HOLD_MS, p => $('fill').style.width = (p*100)+'%');
+}
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
+
+/* ==========================================================================
+   PANELS + SECTION POSITIONS
+   ========================================================================== */
+function getPanels(){
+  if(layout && layout.sections && layout.sections.length) return layout.sections;
+  return CONFIG.PANELS;
+}
+function getCal(){ try{ return JSON.parse(localStorage.getItem('lr_tv_cal')||'null'); }catch(e){ return null; } }
+function setCal(arr){ try{ localStorage.setItem('lr_tv_cal', JSON.stringify(arr)); }catch(e){} }
+
+// Returns an array of scroll targets (design px) aligned to getPanels(), or null if we need calibration.
+function sectionTops(){
+  if(layout && layout.sections && layout.sections.length)
+    return layout.sections.map(s => Math.max(0, s.top - CONFIG.TOP_PAD));
+  const cal = getCal();
+  if(cal && cal.length >= CONFIG.PANELS.length) return cal;
+  return null;
+}
+
+/* ==========================================================================
+   UI updates
+   ========================================================================== */
+function renderNav(panels, activeIdx){
+  const nav = $('nav'); nav.innerHTML='';
+  panels.forEach((pan, i)=>{
+    const item=document.createElement('div');
+    item.className='navItem'+(i===activeIdx?' active':'');
+    item.innerHTML = `<span class="navLabel">${(pan.label||'Panel '+(i+1)).replace(/^[^A-Za-z0-9]+/,'')}</span><span class="navDot"></span>`;
+    nav.appendChild(item);
+  });
+}
+function updateUI(per, panels, activeIdx){
+  $('periodLabel').firstChild.nodeValue = per.label+' ';
+  $('periodSub').textContent = '· '+per.kicker;
+  renderNav(panels, activeIdx);
+}
+function showBanner(per){
+  $('bannerKicker').textContent = per.kicker;
+  $('bannerTitle').textContent  = per.label;
+  $('bannerSub').textContent    = per.sub;
+  $('banner').classList.add('show');
+}
+function hideBanner(){ $('banner').classList.remove('show'); }
+function toast(t){ const el=$('toast'); el.textContent=t; el.classList.add('show'); clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove('show'),2500); }
+
+/* clock */
+setInterval(()=>{ const d=new Date();
+  $('clock').textContent = d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})
+    +' · '+ d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+},1000);
+
+/* ==========================================================================
+   LOAD A PERIOD (reload iframe, show banner, wait for layout)
+   ========================================================================== */
+async function loadPeriod(per){
+  showBanner(per);
+  setScroll(0);
+  setFrameHeight(layout?.totalHeight || CONFIG.FALLBACK_FRAME_HEIGHT);
+  const ready = new Promise(r => layoutResolve = r);
+  frame.onload = ()=>{ try{ frame.contentWindow.postMessage({source:'lr-tv',type:'request-layout'},'*'); }catch(e){} };
+  frame.src = buildUrl(per);
+
+  const t0 = Date.now();
+  await Promise.race([ ready, sleep(9000) ]);     // wait for dashboard layout, max 9s
+  const used = Date.now()-t0;
+  if(used < CONFIG.BANNER_MS) await sleep(CONFIG.BANNER_MS - used);
+
+  if(!sectionTops()){                              // no auto layout AND no calibration yet
+    hideBanner();
+    await calibrate();
+  }
+  hideBanner();
+}
+
+/* ==========================================================================
+   MAIN LOOP
+   ========================================================================== */
+async function driver(){
+  let periods = currentPeriods();
+  await loadPeriod(periods[periodIdx]);
+
+  while(true){
+    // handle a queued skip/back that crosses a period boundary
+    if(pendingNav){
+      const {pi, ai} = pendingNav; pendingNav=null;
+      if(pi !== periodIdx){ periodIdx = pi; await loadPeriod(periods[periodIdx]); }
+      panelIdx = ai; jump = true;
+    }
+
+    const panels = getPanels();
+    const tops   = sectionTops() || panels.map(()=>0);
+    const per    = periods[periodIdx];
+    updateUI(per, panels, panelIdx);
+
+    // position on the current panel
+    if(jump || panelIdx===0){
+      setScroll(tops[panelIdx] || 0);
+      jump = false;
+    } else {
+      const ok = await scrollTo(tops[panelIdx-1]||0, tops[panelIdx]||0);
+      if(!ok) continue;            // canceled by skip/back → re-evaluate
+    }
+
+    // hold
+    const held = await hold();
+    if(!held) continue;            // canceled by skip/back → re-evaluate
+
+    // periodic data refresh (also re-detects the current month/quarter)
+    if(Date.now()-lastRefresh > CONFIG.REFRESH_HOURS*3600*1000){
+      lastRefresh = Date.now(); periods = currentPeriods();
+      await loadPeriod(periods[periodIdx]);
+    }
+
+    // natural advance
+    panelIdx++;
+    if(panelIdx >= panels.length){
+      panelIdx = 0; periodIdx++;
+      if(periodIdx >= periods.length){ periodIdx = 0; periods = currentPeriods(); }
+      await loadPeriod(periods[periodIdx]);
+    }
+  }
+}
+
+/* ==========================================================================
+   NAV CONTROLS (skip / back / pause) + Fire TV remote keys
+   ========================================================================== */
+function go(delta){
+  const n = getPanels().length, P = 3, total = P*n;
+  let flat = ((periodIdx*n + panelIdx + delta) % total + total) % total;
+  pendingNav = { pi: Math.floor(flat/n), ai: flat%n };
+  jump = true;
+  cancelCurrent();
+  flashControls();
+}
+function togglePause(){
+  paused = !paused;
+  $('btnPause').textContent = paused ? '▶' : '⏸';
+  toast(paused ? 'Paused' : 'Playing');
+  flashControls();
+}
+$('btnNext').onclick  = ()=>go(+1);
+$('btnBack').onclick  = ()=>go(-1);
+$('btnPause').onclick = togglePause;
+
+let ctrlTimer=null;
+function flashControls(){
+  $('controls').classList.add('show');
+  clearTimeout(ctrlTimer);
+  if(!paused) ctrlTimer = setTimeout(()=>$('controls').classList.remove('show'), 4000);
+}
+document.addEventListener('mousemove', flashControls);
+
+document.addEventListener('keydown', e=>{
+  if(calMode){ return; }   // calibration handles its own keys
+  switch(e.key){
+    case 'ArrowRight': case 'MediaTrackNext':  go(+1); e.preventDefault(); break;
+    case 'ArrowLeft':  case 'MediaTrackPrevious': go(-1); e.preventDefault(); break;
+    case 'Enter': case ' ': case 'MediaPlayPause':
+    case 'MediaPlay': case 'MediaPause': togglePause(); e.preventDefault(); break;
+    default: flashControls();
+  }
+});
+
+/* ==========================================================================
+   CALIBRATION (fallback used only until the dashboard snippet is installed)
+   ========================================================================== */
+let calMode=false, calIdx=0, calVals=[];
+function calibrate(){
+  return new Promise(resolve=>{
+    calMode=true; calIdx=0; calVals=[];
+    setFrameHeight(CONFIG.FALLBACK_FRAME_HEIGHT);
+    $('calib').classList.add('show');
+    showCalStep();
+
+    const step = (dir)=>{ setScroll(curY + dir*120); };
+    const repeatHold = {};
+    const keyHandler = e=>{
+      if(e.key==='ArrowUp')   { step(-1); e.preventDefault(); }
+      if(e.key==='ArrowDown') { step(+1); e.preventDefault(); }
+      if(e.key==='Enter' || e.key===' ') { lock(); e.preventDefault(); }
+    };
+    const lock = ()=>{
+      calVals[calIdx] = curY;
+      calIdx++;
+      if(calIdx >= CONFIG.PANELS.length){
+        setCal(calVals);
+        cleanup(); resolve();
+      } else { showCalStep(); }
+    };
+    const reset = ()=>{ calIdx=0; calVals=[]; setScroll(0); showCalStep(); };
+    function cleanup(){
+      calMode=false;
+      $('calib').classList.remove('show');
+      document.removeEventListener('keydown', keyHandler, true);
+    }
+    document.addEventListener('keydown', keyHandler, true);
+    $('calUp').onclick   = ()=>step(-1);
+    $('calDown').onclick = ()=>step(+1);
+    $('calLock').onclick = lock;
+    $('calReset').onclick= reset;
+  });
+}
+function showCalStep(){
+  $('calibStep').textContent = `Panel ${calIdx+1} of ${CONFIG.PANELS.length}: ${CONFIG.PANELS[calIdx].label}`;
+}
+
+/* ==========================================================================
+   LAYOUT MESSAGES FROM THE DASHBOARD (auto mode)
+   ========================================================================== */
+window.addEventListener('message', e=>{
+  const d = e.data;
+  if(!d || d.source !== 'lr-dash') return;
+  if(d.type === 'layout'){
+    layout = d;
+    if(d.totalHeight) setFrameHeight(d.totalHeight);
+    applyTransform();
+    if(layoutResolve){ layoutResolve(); layoutResolve=null; }
+  }
+});
+
+/* ==========================================================================
+   KEEP THE FIRE TV AWAKE
+   ========================================================================== */
+(function keepAwake(){
+  // 1) Screen Wake Lock (re-acquire when the tab becomes visible again)
+  let wl=null;
+  async function lock(){ try{ wl = await navigator.wakeLock.request('screen'); }catch(e){} }
+  document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible') lock(); });
+  lock();
+
+  // 2) A perpetually-"playing" tiny canvas video — browsers rarely sleep during playback
+  try{
+    const cv=document.createElement('canvas'); cv.width=2; cv.height=2;
+    const cx=cv.getContext('2d');
+    const v=$('keepawake'); v.srcObject=cv.captureStream(1); v.play().catch(()=>{});
+    setInterval(()=>{ cx.fillStyle = (Math.floor(Date.now()/1000)%2) ? '#000' : '#010101'; cx.fillRect(0,0,2,2); }, 1000);
+  }catch(e){}
+
+  // 3) Periodic synthetic activity
+  setInterval(()=>{ window.dispatchEvent(new Event('mousemove')); }, 30000);
+})();
+
+/* ==========================================================================
+   GO
+   ========================================================================== */
+driver();
+</script>
+</body>
+</html>
