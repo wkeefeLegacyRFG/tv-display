@@ -29,8 +29,8 @@
    - TVs check for a new BUILD every CHECK_MINUTES and switch over on their
      own at the moment the video loops. No need to touch the TV.
    ========================================================================== */
-const VIDEO = 'career-ladder.mp4';
-const BUILD = 'video-v7-2026-10-08';
+const VIDEO = 'career-ladder-v8.mp4';
+const BUILD = 'video-v8-2026-10-08';
 const CHECK_MINUTES = 10;
 
 const v = document.getElementById('v');
@@ -85,7 +85,13 @@ async function newerPageIsLive(){
     if (!r.ok) return false;
     const html = await r.text();
     const m = html.match(/const BUILD = '([^']+)'/);
-    if (m) return m[1] !== BUILD;                              // a new version of this video page
+    if (m) {                                                   // a new version of this video page:
+      if (m[1] === BUILD) return false;                        // only switch once its video file is live too
+      const vid = html.match(/const VIDEO = '([^']+)'/);
+      if (!vid) return false;
+      const h = await fetch(vid[1] + '?probe=' + Date.now(), { method: 'HEAD', cache: 'no-store' });
+      return h.ok && /^video\//.test(h.headers.get('content-type') || '');
+    }
     return /<html/i.test(html) && html.length > 500;           // a different page, e.g. the stat board swapped back in
   } catch (e) { return false; }                                // offline: keep playing what we have
 }
